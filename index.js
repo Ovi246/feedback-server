@@ -51,10 +51,7 @@ const mongoose = require("mongoose");
 require("dotenv").config();
 
 mongoose
-  .connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
+  .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB Connected..."))
   .catch((err) => console.log(err));
 
@@ -69,7 +66,13 @@ const OrderSchema = new Schema({
   orderId: { type: String, unique: true },
 });
 
-const Order = mongoose.model("Order", OrderSchema);
+let Order;
+if (mongoose.models.Order) {
+  Order = mongoose.model("Order");
+} else {
+  Order = mongoose.model("Order", OrderSchema);
+}
+
 
 const handlebars = require("nodemailer-express-handlebars");
 
