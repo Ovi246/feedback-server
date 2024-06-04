@@ -3,21 +3,34 @@ const geoip = require("fast-geoip");
 const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const SellingPartnerAPI = require("amazon-sp-api");
+
 const app = express();
 app.use(express.json());
 require("dotenv").config();
+
 const cors = require("cors");
 const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
-  // "http://localhost:3000",
+  "http://localhost:3000",
 ];
-const nodemailer = require("nodemailer");
 
+const nodemailer = require("nodemailer");
 const createDOMPurify = require("dompurify");
 const { JSDOM } = require("jsdom");
-
 const window = new JSDOM("").window;
 const DOMPurify = createDOMPurify(window);
+
+const admin = require("firebase-admin");
+const serviceAccount = require("./studykey_serviceaccount.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  storageBucket: "studykey-b1dc7.appspot.com",
+});
+
+const bucket = admin.storage().bucket();
+const englishPdfFile = bucket.file("reward_english.pdf");
+const spanishPdfFile = bucket.file("reward_spanish.pdf");
 
 const mongoose = require("mongoose");
 require("dotenv").config();
@@ -150,12 +163,12 @@ app.post("/submit-review", async (req, res) => {
     // Determine the PDF file based on the user's language
     let pdfFile;
     if (formData.language === "English") {
-      pdfFile = "./reward_english.pdf";
+      pdfFile = englishPdfFile;
     } else if (formData.language === "Spanish") {
-      pdfFile = "./reward_spanish.pdf";
+      pdfFile = spanishPdfFile;
     } else {
       // Default to English if the language is neither English nor Spanish
-      pdfFile = "./reward_english.pdf";
+      pdfFile = englishPdfFile;
     }
 
     // Create a new order
@@ -164,6 +177,12 @@ app.post("/submit-review", async (req, res) => {
     try {
       // Save the order to the database
       await order.save();
+
+      // Generate a signed URL for the PDF
+      const [url] = await pdfFile.getSignedUrl({
+        action: "read",
+        expires: "03-17-2025",
+      });
 
       // Email to the user
       let userMailOptions = {
@@ -174,14 +193,8 @@ app.post("/submit-review", async (req, res) => {
         context: {
           // Variables to replace in the template
           name: formData.name,
+          url, // Include the URL in the email
         },
-        attachments: [
-          {
-            filename: "reward.pdf",
-            path: pdfFile, // Path to the PDF file
-            contentType: "application/pdf",
-          },
-        ],
       };
 
       // Email to the admin
@@ -254,9 +267,9 @@ app.get("/api/location", async (req, res) => {
   res.send(geo);
 });
 
-// app.listen(5000, function (err) {
-//   if (err) console.log("Error in server setup");
-//   console.log("Server listening on Port", 5000);
-// });
+app.listen(5000, function (err) {
+  if (err) console.log("Error in server setup");
+  console.log("Server listening on Port", 5000);
+});
 
 module.exports = app;
