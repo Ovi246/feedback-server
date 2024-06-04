@@ -230,18 +230,18 @@ app.post("/submit-review", async (req, res) => {
         if (error) {
           console.error(error);
         } else {
-          console.log(info);
+          // Send email to the admin
+          transporter.sendMail(adminMailOptions, (error, info) => {
+            if (error) {
+              console.error(error);
+            } else {
+              console.log(info);
+            }
+          });
         }
       });
 
-      // Send email to the admin
-      transporter.sendMail(adminMailOptions, (error, info) => {
-        if (error) {
-          console.error(error);
-        } else {
-          console.log(info);
-        }
-      });
+     
 
       res
         .status(200)
