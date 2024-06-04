@@ -260,6 +260,18 @@ app.post("/submit-review", async (req, res) => {
         });
       });
 
+      await new Promise((resolve, reject) => {
+        transporter.sendMail(adminMailOptions, (error, info) => {
+          if (error) {
+            console.error("Error sending email to user:", error);
+            reject(error);
+          } else {
+            console.log("Email sent to user:", info);
+            resolve(info);
+          }
+        });
+      });
+
       res
         .status(200)
         .json({ success: true, message: "Emails sent successfully" });
