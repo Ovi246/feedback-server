@@ -225,23 +225,29 @@ app.post("/submit-review", async (req, res) => {
         `), // Sanitized HTML body
       };
 
-      // Send email to the user
+      // // Send email to the user
+      // transporter.sendMail(userMailOptions, (error, info) => {
+      //   if (error) {
+      //     console.error(error);
+      //   } else {
+      //     // Send email to the admin
+      //     transporter.sendMail(adminMailOptions, (error, info) => {
+      //       if (error) {
+      //         console.error(error);
+      //       } else {
+      //         console.log(info);
+      //       }
+      //     });
+      //   }
+      // });
+
       transporter.sendMail(userMailOptions, (error, info) => {
         if (error) {
-          console.error(error);
+          console.error("Error sending email to user:", error);
         } else {
-          // Send email to the admin
-          transporter.sendMail(adminMailOptions, (error, info) => {
-            if (error) {
-              console.error(error);
-            } else {
-              console.log(info);
-            }
-          });
+          console.log("Email sent to user:", info);
         }
       });
-
-     
 
       res
         .status(200)
