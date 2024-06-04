@@ -1,4 +1,4 @@
 /.env
 /node_modules
 .vercel
-studykey_serviceaccount.json
+/studykey_serviceaccount.json
