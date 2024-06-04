@@ -35,10 +35,13 @@ const serviceAccount = {
   client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
 };
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-  storageBucket: "studykey-b1dc7.appspot.com",
-});
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    storageBucket: "studykey-b1dc7.appspot.com",
+  });
+}
+
 
 const bucket = admin.storage().bucket();
 const englishPdfFile = bucket.file("reward_english.pdf");
