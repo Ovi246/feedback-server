@@ -79,20 +79,20 @@ let transporter = nodemailer.createTransport({
   },
 });
 
-// Set up handlebars
 transporter.use(
   "compile",
   handlebars({
     viewEngine: {
       extName: ".html", // handlebars extension
-      partialsDir: "views/email",
-      layoutsDir: "views/email",
+      partialsDir: path.join(__dirname, "views/email"),
+      layoutsDir: path.join(__dirname, "views/email"),
       defaultLayout: "reward.html", // email template file
     },
-    viewPath: "views/email",
+    viewPath: path.join(__dirname, "views/email"),
     extName: ".html",
   })
 );
+
 
 // Enable various security headers
 app.use(helmet());

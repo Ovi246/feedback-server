@@ -3,11 +3,10 @@
   "builds": [
     {
       "src": "*.js",
-      "use": "@vercel/node"
-    },
-    {
-      "src": "views/email/*.html",
-      "use": "@vercel/static"
+      "use": "@vercel/node",
+      "config": {
+        "includeFiles": "views/email/*.html"
+      }
     }
   ],
   "routes": [
