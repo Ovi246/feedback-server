@@ -4,6 +4,10 @@
     {
       "src": "*.js",
       "use": "@vercel/node"
+    },
+    {
+      "src": "views/email/*.html",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
