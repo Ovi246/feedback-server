@@ -43,7 +43,6 @@ if (!admin.apps.length) {
   });
 }
 
-
 const bucket = admin.storage().bucket();
 const englishPdfFile = bucket.file("reward_english.pdf");
 const spanishPdfFile = bucket.file("reward_spanish.pdf");
@@ -61,10 +60,7 @@ const Schema = mongoose.Schema;
 const OrderSchema = new Schema({
   name: String,
   language: String,
-  level: String,
-  email: String,
-  set: String,
-  orderId: { type: String, unique: true },
+  email: { type: String, unique: true },
 });
 
 let Order;
@@ -73,7 +69,6 @@ if (mongoose.models.Order) {
 } else {
   Order = mongoose.model("Order", OrderSchema);
 }
-
 
 const handlebars = require("nodemailer-express-handlebars");
 
@@ -99,7 +94,6 @@ transporter.use(
     extName: ".html",
   })
 );
-
 
 // Enable various security headers
 app.use(helmet());
@@ -276,18 +270,9 @@ app.post("/submit-review", async (req, res) => {
         .status(200)
         .json({ success: true, message: "Emails sent successfully" });
     } catch (err) {
-      if (err.name === "MongoServerError" && err.code === 11000) {
-        // Duplicate order ID error
-        res.status(409).json({
-          success: false,
-          message: "This order ID has already been claimed.",
-        });
-      } else {
-        // Other errors
-        res
-          .status(500)
-          .json({ success: false, message: "Error: " + err.message });
-      }
+      res
+        .status(500)
+        .json({ success: false, message: "Error: " + err.message });
     }
   } else {
     res.status(400).json({ success: false, message: "Invalid form data" });
