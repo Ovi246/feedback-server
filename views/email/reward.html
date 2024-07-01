@@ -5,12 +5,25 @@
     body {
       font-family: Arial, sans-serif;
     }
-    .reward-email {
+    .container {
+      width: 100%;
+      margin: 0 auto;
       background-color: #f8f9fa;
       padding: 20px;
-      margin: 0 auto;
-      width: 80%;
       border-radius: 5px;
+    }
+    .container img {
+      width: 200px;
+      display: block;
+      margin: 0 auto;
+    }
+    .reward-email {
+      background-color: white;
+      margin: 0 auto;
+      width: 40%;
+    }
+    .reward-email-texts {
+      padding: 20px;
     }
     .reward-email h1 {
       color: #6c757d;
@@ -18,16 +31,35 @@
     .reward-email p {
       color: #6c757d;
     }
+    .reward-email img {
+      width: 100%;
+      background-color: white;
+      border-bottom: 10px solid blue;
+      border-bottom-left-radius: 10px;
+      border-bottom-right-radius: 10px;
+    }
+    .title {
+      font-weight: 900;
+    }
   </style>
 </head>
 <body>
-  <div class="reward-email">
-    <h1>Congratulations, {{name}}!</h1>
-    <p>Thank you for your submission. As a token of our appreciation, we have attached a reward PDF for you.</p>
-    <p>Best regards,</p>
-    <p>Your Team</p>
-
-<p>Here is your reward: <a href="{{url}}">Download PDF</a></p>
+  <div class="container">
+    <img src="./Logo.png" alt="studykey"/>
+    <div class="reward-email">
+      
+      <div class="reward-email-texts">
+        <h1>Congratulations, {{name}}!</h1>
+        <p>Thank you for being a part of this journey with us and making the world more connected, one language at a time. Please see the link attached for your FREE e-book. We hope you find this e-book beneficial. </p>
+        <p>📖 Download Your E-Book: <a href="{{url}}">Download PDF</a></p>
+        
+        <p>If you have any feedback or questions, don’t hesitate to reach out to us at studykeyteam@gmail.com. We value your input!</p>
+        <p>Kind regards,</p>
+        <p class="title">Nafiseh Razavi,</p>
+        <p>Study Key Team</p>
+      </div>
+      <img src="./header.jpeg" alt="studykey"/>
+    </div>
   </div>
 </body>
 </html>
