@@ -11,7 +11,7 @@ require("dotenv").config();
 
 const cors = require("cors");
 const allowedOrigins = [
-  "https://studykey-riddles.vercel.app",
+  "https://studykey-free-ebook.vercel.app",
   // "http://localhost:3000",
 ];
 
