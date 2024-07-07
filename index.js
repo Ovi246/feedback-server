@@ -201,7 +201,7 @@ app.post("/submit-review", async (req, res) => {
       let userMailOptions = {
         from: process.env.GMAIL_USER, // Sender address
         to: formData.email, // User's email
-        subject: "Your Reward", // Subject line
+        subject: "Study Key FREE gift", // Subject line
         template: "reward", // Name of the template file without extension
         context: {
           // Variables to replace in the template
