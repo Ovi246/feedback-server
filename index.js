@@ -50,6 +50,37 @@ const spanishPdfFile = bucket.file("reward_spanish.pdf");
 const mongoose = require("mongoose");
 require("dotenv").config();
 
+// MongoDB connection optimization
+let cachedConnection = null;
+
+async function connectToDatabase() {
+  if (cachedConnection) {
+    return cachedConnection;
+  }
+
+  mongoose.connection.on("connected", () => console.log("MongoDB connected"));
+  mongoose.connection.on("error", (err) =>
+    console.error("MongoDB connection error:", err)
+  );
+
+  try {
+    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 10000,
+      maxPoolSize: 10,
+    });
+
+    cachedConnection = conn;
+    return conn;
+  } catch (error) {
+    console.error("MongoDB connection error:", error);
+    throw error;
+  }
+}
+
+
+
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("MongoDB Connected..."))
@@ -184,10 +215,11 @@ app.post("/submit-review", async (req, res) => {
       pdfFile = englishPdfFile;
     }
 
-    // Create a new order
-    const order = new Order(formData);
-
     try {
+      await connectToDatabase();
+
+      // Create a new order
+      const order = new Order(formData);
       // Save the order to the database
       await order.save();
 
