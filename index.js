@@ -240,7 +240,7 @@ app.post("/submit-review", async (req, res) => {
       let adminMailOptions = {
         from: process.env.GMAIL_USER, // Sender address
         to: process.env.GMAIL_USER, // Admin's email
-        subject: "New PDF Claimed", // Subject line
+        subject: `New ${formData.language} PDF Claimed`, // Subject line
         html: DOMPurify.sanitize(`
           <h1>New Order Submission</h1>
           <p><strong>User Name:</strong> ${formData.name}</p>
