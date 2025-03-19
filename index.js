@@ -220,7 +220,7 @@ app.post("/submit-review", async (req, res) => {
       // Generate a signed URL for the PDF
       const [url] = await pdfFile.getSignedUrl({
         action: "read",
-        expires: "03-17-2025",
+        expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now in milliseconds
       });
 
       // Email to the user
