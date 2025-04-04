@@ -363,14 +363,26 @@ app.get("/admin/orders", authenticateAdmin, async (req, res) => {
     let filter = {};
     
     if (startDate && endDate) {
+      // Create date objects and set to start/end of day
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
       filter.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $gte: start,
+        $lte: end
       };
+      console.log("Date filter:", filter.createdAt);
     } else if (startDate) {
-      filter.createdAt = { $gte: new Date(startDate) };
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
     } else if (endDate) {
-      filter.createdAt = { $lte: new Date(endDate) };
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
     }
     
     if (language) {
@@ -431,14 +443,25 @@ app.get("/admin/orders/csv", authenticateAdmin, async (req, res) => {
     let filter = {};
     
     if (startDate && endDate) {
+      // Create date objects and set to start/end of day
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
       filter.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $gte: start,
+        $lte: end
       };
     } else if (startDate) {
-      filter.createdAt = { $gte: new Date(startDate) };
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
     } else if (endDate) {
-      filter.createdAt = { $lte: new Date(endDate) };
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
     }
     
     if (language) {
@@ -494,14 +517,26 @@ app.get("/admin", authenticateAdmin, async (req, res) => {
     let filter = {};
     
     if (startDate && endDate) {
+      // Create date objects and set to start/end of day
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
       filter.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $gte: start,
+        $lte: end
       };
+      
     } else if (startDate) {
-      filter.createdAt = { $gte: new Date(startDate) };
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
     } else if (endDate) {
-      filter.createdAt = { $lte: new Date(endDate) };
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
     }
     
     if (language) {
@@ -672,14 +707,25 @@ app.get("/admin/orders/pdf", authenticateAdmin, async (req, res) => {
     let filter = {};
     
     if (startDate && endDate) {
+      // Create date objects and set to start/end of day
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
       filter.createdAt = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $gte: start,
+        $lte: end
       };
     } else if (startDate) {
-      filter.createdAt = { $gte: new Date(startDate) };
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
     } else if (endDate) {
-      filter.createdAt = { $lte: new Date(endDate) };
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
     }
     
     if (language) {
@@ -785,9 +831,9 @@ app.get("/admin/orders/pdf", authenticateAdmin, async (req, res) => {
   }
 });
 
-app.listen(5000, function (err) {
-  if (err) console.log("Error in server setup");
-  console.log("Server listening on Port", 5000);
-});
+// app.listen(5000, function (err) {
+//   if (err) console.log("Error in server setup");
+//   console.log("Server listening on Port", 5000);
+// });
 
 module.exports = app;
