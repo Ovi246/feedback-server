@@ -1,0 +1,25 @@
+<!-- views/email/bonus_confirmation.html -->
+<div>
+    <h2>Thank you for claiming your bonus set!</h2>
+    
+    <p>Dear {{name}},</p>
+    
+    <p>We're excited to confirm that we've received your bonus set claim. Here are the details of your claim:</p>
+    
+    <div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p><strong>Product Set:</strong> {{productSet}}</p>
+        <p><strong>Shipping Address:</strong></p>
+        <p>
+            {{address.street}}<br>
+            {{address.city}}, {{address.state}} {{address.zipCode}}<br>
+            {{address.country}}
+        </p>
+    </div>
+    
+    <p>Your bonus set will be shipped to the address provided above. You can expect to receive it within 5-7 business days.</p>
+    
+    <p>If you have any questions or need to update your shipping information, please don't hesitate to contact us.</p>
+    
+    <p>Best regards,<br>
+    The Study Key Team</p>
+</div>

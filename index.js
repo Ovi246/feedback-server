@@ -12,7 +12,7 @@ require("dotenv").config();
 const cors = require("cors");
 const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
-  // "http://localhost:3000",
+  "http://localhost:5173",
 ];
 
 const nodemailer = require("nodemailer");
@@ -211,7 +211,7 @@ app.post("/validate-order-id", async (req, res) => {
 
 app.post("/submit-review", async (req, res) => {
   const formData = req.body;
-
+  console.log(req.body)
   if (formData) {
     // Determine the PDF file based on the user's language
     let pdfFile;
@@ -831,9 +831,475 @@ app.get("/admin/orders/pdf", authenticateAdmin, async (req, res) => {
   }
 });
 
-// app.listen(5000, function (err) {
-//   if (err) console.log("Error in server setup");
-//   console.log("Server listening on Port", 5000);
-// });
+const BonusSchema = new Schema({
+  name: String,
+  language: String,
+  email: String,
+  orderId: { type: String, unique: true },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    zipCode: String,
+    country: String
+  },
+  productSet: String,
+  createdAt: { type: Date, default: Date.now }
+});
+
+let Bonus;
+if (mongoose.models.Bonus) {
+  Bonus = mongoose.model("Bonus");
+} else {
+  Bonus = mongoose.model("Bonus", BonusSchema);
+}
+
+// Admin route for viewing bonus claims
+app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
+  try {
+    // Ensure we're connected to the database before proceeding
+    await connectToDatabase();
+    
+    // Get query parameters
+    const { 
+      startDate, 
+      endDate, 
+      language, 
+      searchTerm,
+      zipCode,
+      city,
+      state,
+      productSet,
+      page = 1, 
+      limit = 10 
+    } = req.query;
+    
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+    
+    // Build filter based on query parameters
+    let filter = {};
+    
+    // Date range filter
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
+      filter.createdAt = {
+        $gte: start,
+        $lte: end
+      };
+    } else if (startDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
+    } else if (endDate) {
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
+    }
+    
+    // Language filter
+    if (language) {
+      filter.language = language;
+    }
+    
+    // Product set filter
+    if (productSet) {
+      filter.productSet = productSet;
+    }
+    
+    // Address filters
+    if (zipCode) {
+      filter['address.zipCode'] = zipCode;
+    }
+    if (city) {
+      filter['address.city'] = { $regex: city, $options: 'i' };
+    }
+    if (state) {
+      filter['address.state'] = { $regex: state, $options: 'i' };
+    }
+    
+    // Search term filter (searches across multiple fields)
+    if (searchTerm) {
+      filter.$or = [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { orderId: { $regex: searchTerm, $options: 'i' } },
+        { 'address.street': { $regex: searchTerm, $options: 'i' } },
+        { 'address.city': { $regex: searchTerm, $options: 'i' } },
+        { 'address.state': { $regex: searchTerm, $options: 'i' } },
+        { 'address.zipCode': { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    // Get total count and paginated results
+    let total;
+    let bonuses;
+    
+    try {
+      total = await Bonus.countDocuments(filter);
+      bonuses = await Bonus.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean()
+        .exec();
+    } catch (dbError) {
+      console.error("Database query error:", dbError);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Database error: " + dbError.message 
+      });
+    }
+    
+    const totalPages = Math.ceil(total / limitNum);
+    
+    // Generate rows for the current page
+    let rows = bonuses.map(bonus => {
+      const date = bonus.createdAt ? new Date(bonus.createdAt).toLocaleDateString() : 'N/A';
+      return '<tr>' + 
+        '<td>' + (bonus.name || '-') + '</td>' +
+        '<td>' + (bonus.email || '-') + '</td>' +
+        '<td>' + (bonus.orderId || '-') + '</td>' +
+        '<td>' + (bonus.language || '-') + '</td>' +
+        '<td>' + (bonus.productSet || '-') + '</td>' +
+        '<td>' + (bonus.address?.street || '-') + '</td>' +
+        '<td>' + (bonus.address?.city || '-') + '</td>' +
+        '<td>' + (bonus.address?.state || '-') + '</td>' +
+        '<td>' + (bonus.address?.zipCode || '-') + '</td>' +
+        '<td>' + date + '</td>' +
+        '</tr>';
+    }).join('');
+
+    // Generate pagination HTML
+    let paginationHTML = '';
+    if (totalPages > 1) {
+      paginationHTML += `<li class="page-item ${pageNum <= 1 ? 'disabled' : ''}">
+        <a class="page-link" href="?token=${req.query.token}&page=${pageNum - 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">Previous</a>
+      </li>`;
+      
+      const startPage = Math.max(1, pageNum - 2);
+      const endPage = Math.min(totalPages, pageNum + 2);
+      
+      for (let i = startPage; i <= endPage; i++) {
+        paginationHTML += `<li class="page-item ${i === pageNum ? 'active' : ''}">
+          <a class="page-link" href="?token=${req.query.token}&page=${i}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">${i}</a>
+        </li>`;
+      }
+      
+      paginationHTML += `<li class="page-item ${pageNum >= totalPages ? 'disabled' : ''}">
+        <a class="page-link" href="?token=${req.query.token}&page=${pageNum + 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">Next</a>
+      </li>`;
+    }
+
+    // HTML template
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Bonus Claims Dashboard</title>
+        <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+        <style>
+          body { padding: 20px; }
+          .filters { margin-bottom: 20px; }
+          table { width: 100%; }
+          th, td { padding: 8px; text-align: left; }
+          th { background-color: #f2f2f2; }
+          .pagination { justify-content: center; margin-top: 20px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h1 class="mb-4">Study Key - Bonus Claims Management</h1>
+          <div class="alert alert-info">Total Bonus Claims: ${total} (Page ${pageNum} of ${totalPages})</div>
+          
+          <form method="GET" action="/admin/bonus" class="filters row g-3">
+            <input type="hidden" name="token" value="${req.query.token}">
+            
+            <div class="col-md-3">
+              <label class="form-label">Start Date</label>
+              <input type="date" class="form-control" name="startDate" value="${startDate || ''}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">End Date</label>
+              <input type="date" class="form-control" name="endDate" value="${endDate || ''}">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Language</label>
+              <select class="form-select" name="language">
+                <option value="" ${!language ? 'selected' : ''}>All Languages</option>
+                <option value="English" ${language === 'English' ? 'selected' : ''}>English</option>
+                <option value="Spanish" ${language === 'Spanish' ? 'selected' : ''}>Spanish</option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Product Set</label>
+              <input type="text" class="form-control" name="productSet" value="${productSet || ''}" placeholder="Product Set">
+            </div>
+            
+            <div class="col-md-3">
+              <label class="form-label">Zip Code</label>
+              <input type="text" class="form-control" name="zipCode" value="${zipCode || ''}" placeholder="Zip Code">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">City</label>
+              <input type="text" class="form-control" name="city" value="${city || ''}" placeholder="City">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">State</label>
+              <input type="text" class="form-control" name="state" value="${state || ''}" placeholder="State">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label">Search</label>
+              <input type="text" class="form-control" name="searchTerm" value="${searchTerm || ''}" placeholder="Name, Email, Order ID, or Address">
+            </div>
+            
+            <div class="col-12 mt-3">
+              <button type="submit" class="btn btn-primary">Apply Filters</button>
+              <a href="/admin/bonus?token=${req.query.token}" class="btn btn-secondary ms-2">Reset Filters</a>
+              <a href="/admin/bonus/csv?token=${req.query.token}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}" class="btn btn-success ms-2">Download CSV</a>
+            </div>
+          </form>
+          
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Order ID</th>
+                  <th>Language</th>
+                  <th>Product Set</th>
+                  <th>Street</th>
+                  <th>City</th>
+                  <th>State</th>
+                  <th>Zip Code</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.length ? rows : '<tr><td colspan="10" class="text-center">No bonus claims found</td></tr>'}
+              </tbody>
+            </table>
+          </div>
+          
+          <nav aria-label="Page navigation">
+            <ul class="pagination">
+              ${paginationHTML}
+            </ul>
+          </nav>
+        </div>
+      </body>
+      </html>
+    `;
+
+    res.setHeader('Content-Type', 'text/html');
+    res.status(200).send(html);
+  } catch (err) {
+    console.error("Error rendering bonus admin page:", err);
+    res.status(500).json({ success: false, message: "Error: " + err.message });
+  }
+});
+
+// Route to download bonus claims as CSV
+app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    
+    const { startDate, endDate, language, searchTerm, zipCode, city, state, productSet } = req.query;
+    
+    let filter = {};
+    
+    // Apply the same filters as the main route
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      
+      filter.createdAt = {
+        $gte: start,
+        $lte: end
+      };
+    } else if (startDate) {
+      const start = new Date(startDate);
+      start.setUTCHours(0, 0, 0, 0);
+      filter.createdAt = { $gte: start };
+    } else if (endDate) {
+      const end = new Date(endDate);
+      end.setUTCHours(23, 59, 59, 999);
+      filter.createdAt = { $lte: end };
+    }
+    
+    if (language) filter.language = language;
+    if (productSet) filter.productSet = productSet;
+    if (zipCode) filter['address.zipCode'] = zipCode;
+    if (city) filter['address.city'] = { $regex: city, $options: 'i' };
+    if (state) filter['address.state'] = { $regex: state, $options: 'i' };
+    
+    if (searchTerm) {
+      filter.$or = [
+        { name: { $regex: searchTerm, $options: 'i' } },
+        { email: { $regex: searchTerm, $options: 'i' } },
+        { orderId: { $regex: searchTerm, $options: 'i' } },
+        { 'address.street': { $regex: searchTerm, $options: 'i' } },
+        { 'address.city': { $regex: searchTerm, $options: 'i' } },
+        { 'address.state': { $regex: searchTerm, $options: 'i' } },
+        { 'address.zipCode': { $regex: searchTerm, $options: 'i' } }
+      ];
+    }
+    
+    const bonuses = await Bonus.find(filter).sort({ createdAt: -1 }).lean().exec();
+    
+    // Generate CSV content
+    let csv = 'Name,Email,Order ID,Language,Product Set,Street,City,State,Zip Code,Created Date\n';
+    bonuses.forEach(bonus => {
+      const date = bonus.createdAt ? new Date(bonus.createdAt).toISOString().split('T')[0] : 'N/A';
+      csv += `"${bonus.name || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.productSet || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${date}"\n`;
+    });
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename=bonus_claims.csv');
+    res.status(200).send(csv);
+  } catch (err) {
+    console.error("Error downloading bonus CSV:", err);
+    res.status(500).json({ success: false, message: "Error: " + err.message });
+  }
+});
+
+// Add this route after your existing routes
+app.post("/bonus-claim", async (req, res) => {
+  const formData = req.body;
+  
+  if (!formData) {
+    return res.status(400).json({ 
+      success: false, 
+      message: "Invalid form data" 
+    });
+  }
+
+  try {
+    // Ensure we're connected to the database
+    await connectToDatabase();
+
+    // Check if this order ID has already claimed a bonus
+    const existingClaim = await Bonus.findOne({ orderId: formData.orderId });
+    if (existingClaim) {
+      return res.status(409).json({ 
+        success: false, 
+        message: "This order has already claimed a bonus set." 
+      });
+    }
+
+    // Create a new bonus claim
+    const bonus = new Bonus({
+      name: formData.name,
+      language: formData.language,
+      email: formData.email,
+      orderId: formData.orderId,
+      address: {
+        street: formData.address?.street,
+        city: formData.address?.city,
+        state: formData.address?.state,
+        zipCode: formData.address?.zipCode,
+        country: formData.address?.country
+      },
+      productSet: formData.productSet,
+      createdAt: new Date()
+    });
+
+    // Save the bonus claim to the database
+    try {
+      await bonus.save();
+    } catch (dbError) {
+      console.error("Database save error:", dbError);
+      return res.status(500).json({ 
+        success: false, 
+        message: "Database error: " + dbError.message 
+      });
+    }
+
+    // Email to the user
+    let userMailOptions = {
+      from: process.env.GMAIL_USER,
+      to: formData.email,
+      subject: "Study Key Bonus Set Confirmation",
+      template: "bonus_confirmation", // You'll need to create this template
+      context: {
+        name: formData.name,
+        productSet: formData.productSet,
+        address: formData.address
+      },
+    };
+
+    // Email to the admin
+    let adminMailOptions = {
+      from: process.env.GMAIL_USER,
+      to: process.env.GMAIL_USER,
+      subject: `New Bonus Set Claim - ${formData.productSet}`,
+      html: DOMPurify.sanitize(`
+        <h1>New Bonus Set Claim</h1>
+        <p><strong>User Name:</strong> ${formData.name}</p>
+        <p><strong>Email:</strong> ${formData.email}</p>
+        <p><strong>Order ID:</strong> ${formData.orderId}</p>
+        <p><strong>Language:</strong> ${formData.language}</p>
+        <p><strong>Product Set:</strong> ${formData.productSet}</p>
+        <p><strong>Address:</strong></p>
+        <p>${formData.address?.street || ''}</p>
+        <p>${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.zipCode || ''}</p>
+        <p>${formData.address?.country || ''}</p>
+      `),
+    };
+
+    // Send emails
+    await new Promise((resolve, reject) => {
+      transporter.sendMail(userMailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending email to user:", error);
+          reject(error);
+        } else {
+          console.log("Email sent to user:", info);
+          resolve(info);
+        }
+      });
+    });
+
+    await new Promise((resolve, reject) => {
+      transporter.sendMail(adminMailOptions, (error, info) => {
+        if (error) {
+          console.error("Error sending email to admin:", error);
+          reject(error);
+        } else {
+          console.log("Email sent to admin:", info);
+          resolve(info);
+        }
+      });
+    });
+
+    // Return success response
+    res.status(200).json({ 
+      success: true, 
+      message: "Bonus claim processed successfully" 
+    });
+
+  } catch (err) {
+    console.error("Error in bonus-claim:", err);
+    res.status(500).json({ 
+      success: false, 
+      message: "Error: " + err.message 
+    });
+  }
+});
+
+app.listen(5000, function (err) {
+  if (err) console.log("Error in server setup");
+  console.log("Server listening on Port", 5000);
+});
 
 module.exports = app;
