@@ -4,6 +4,16 @@ const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const SellingPartnerAPI = require("amazon-sp-api");
 const path = require("path");
+const multer = require("multer");
+const cloudinary = require("cloudinary").v2;
+
+// Configure multer for file uploads
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit for images
+  },
+});
 
 const app = express();
 app.use(express.json());
@@ -13,7 +23,7 @@ const cors = require("cors");
 const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
   "https://studykey-giveaway.vercel.app",
-  // "http://localhost:5173",
+  "http://localhost:5173",
 ];
 
 const nodemailer = require("nodemailer");
@@ -173,6 +183,33 @@ let sellingPartner = new SellingPartnerAPI({
     },
   },
 });
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+// Helper function to handle media uploads
+async function uploadToCloudinary(file, type) {
+  const b64 = Buffer.from(file.buffer).toString('base64');
+  const dataURI = `data:${file.mimetype};base64,${b64}`;
+  
+  return await cloudinary.uploader.upload(dataURI, {
+    folder: type === 'video' ? 'review-videos' : 'review-screenshots',
+    resource_type: 'auto',
+    public_id: `review-${Date.now()}`,
+    // Add specific options for videos
+    ...(type === 'video' && {
+      chunk_size: 6000000, // 6MB chunks
+      eager: [
+        { width: 720, height: 480, crop: "pad" }, // Lower resolution version
+      ],
+      eager_async: true,
+    })
+  });
+}
 
 app.post("/validate-order-id", async (req, res) => {
   const { orderId } = req.body;
@@ -845,6 +882,7 @@ const BonusSchema = new Schema({
     country: String
   },
   productSet: String,
+  screenshot: String,
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -1174,7 +1212,34 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
   }
 });
 
-// Add this route after your existing routes
+// Route for handling screenshot uploads
+app.post("/upload-screenshot", upload.single("screenshot"), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "No file uploaded"
+      });
+    }
+
+    const result = await uploadToCloudinary(req.file, 'image');
+    
+    res.status(200).json({
+      success: true,
+      url: result.secure_url
+    });
+  } catch (err) {
+    console.error("Error uploading screenshot:", err);
+    res.status(500).json({
+      success: false,
+      message: err.message.includes('file size') 
+        ? "File size too large. Please upload a smaller file."
+        : "Error uploading file"
+    });
+  }
+});
+
+// Update bonus-claim route to accept regular form data
 app.post("/bonus-claim", async (req, res) => {
   const formData = req.body;
   
@@ -1186,10 +1251,8 @@ app.post("/bonus-claim", async (req, res) => {
   }
 
   try {
-    // Ensure we're connected to the database
     await connectToDatabase();
 
-    // Check if this order ID has already claimed a bonus
     const existingClaim = await Bonus.findOne({ orderId: formData.orderId });
     if (existingClaim) {
       return res.status(409).json({ 
@@ -1198,7 +1261,6 @@ app.post("/bonus-claim", async (req, res) => {
       });
     }
 
-    // Create a new bonus claim
     const bonus = new Bonus({
       name: formData.name,
       language: formData.language,
@@ -1212,26 +1274,18 @@ app.post("/bonus-claim", async (req, res) => {
         country: formData.address?.country
       },
       productSet: formData.productSet,
+      screenshot: formData.screenshotUrl, // Use the URL from the screenshot upload
       createdAt: new Date()
     });
 
-    // Save the bonus claim to the database
-    try {
-      await bonus.save();
-    } catch (dbError) {
-      console.error("Database save error:", dbError);
-      return res.status(500).json({ 
-        success: false, 
-        message: "Database error: " + dbError.message 
-      });
-    }
+    await bonus.save();
 
     // Email to the user
     let userMailOptions = {
       from: process.env.GMAIL_USER,
       to: formData.email,
       subject: "Study Key Bonus Set Confirmation",
-      template: "bonus_confirmation", // You'll need to create this template
+      template: "bonus_confirmation",
       context: {
         name: formData.name,
         productSet: formData.productSet,
@@ -1255,38 +1309,38 @@ app.post("/bonus-claim", async (req, res) => {
         <p>${formData.address?.street || ''}</p>
         <p>${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.zipCode || ''}</p>
         <p>${formData.address?.country || ''}</p>
+        ${formData.screenshotUrl ? `<p><strong>Screenshot:</strong> <a href="${formData.screenshotUrl}">View Screenshot</a></p>` : ''}
       `),
     };
 
-    // Send emails
-    await new Promise((resolve, reject) => {
-      transporter.sendMail(userMailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending email to user:", error);
-          reject(error);
-        } else {
-          console.log("Email sent to user:", info);
-          resolve(info);
-        }
-      });
-    });
+    await Promise.all([
+      new Promise((resolve, reject) => {
+        transporter.sendMail(userMailOptions, (error, info) => {
+          if (error) {
+            console.error("Error sending email to user:", error);
+            reject(error);
+          } else {
+            console.log("Email sent to user:", info);
+            resolve(info);
+          }
+        });
+      }),
+      new Promise((resolve, reject) => {
+        transporter.sendMail(adminMailOptions, (error, info) => {
+          if (error) {
+            console.error("Error sending email to admin:", error);
+            reject(error);
+          } else {
+            console.log("Email sent to admin:", info);
+            resolve(info);
+          }
+        });
+      })
+    ]);
 
-    await new Promise((resolve, reject) => {
-      transporter.sendMail(adminMailOptions, (error, info) => {
-        if (error) {
-          console.error("Error sending email to admin:", error);
-          reject(error);
-        } else {
-          console.log("Email sent to admin:", info);
-          resolve(info);
-        }
-      });
-    });
-
-    // Return success response
     res.status(200).json({ 
       success: true, 
-      message: "Bonus claim processed successfully" 
+      message: "Bonus claim processed successfully"
     });
 
   } catch (err) {
@@ -1298,9 +1352,9 @@ app.post("/bonus-claim", async (req, res) => {
   }
 });
 
-// app.listen(5000, function (err) {
-//   if (err) console.log("Error in server setup");
-//   console.log("Server listening on Port", 5000);
-// });
+app.listen(5000, function (err) {
+  if (err) console.log("Error in server setup");
+  console.log("Server listening on Port", 5000);
+});
 
 module.exports = app;
