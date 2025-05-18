@@ -23,7 +23,7 @@ const cors = require("cors");
 const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
   "https://studykey-giveaway.vercel.app",
-  "http://localhost:5173",
+  // "http://localhost:5173",
 ];
 
 const nodemailer = require("nodemailer");
@@ -1352,9 +1352,9 @@ app.post("/bonus-claim", async (req, res) => {
   }
 });
 
-app.listen(5000, function (err) {
-  if (err) console.log("Error in server setup");
-  console.log("Server listening on Port", 5000);
-});
+// app.listen(5000, function (err) {
+//   if (err) console.log("Error in server setup");
+//   console.log("Server listening on Port", 5000);
+// });
 
 module.exports = app;
