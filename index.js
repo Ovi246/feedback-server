@@ -132,10 +132,10 @@ transporter.use(
   "compile",
   handlebars({
     viewEngine: {
-      extName: ".html", // handlebars extension
+      extName: ".html",
       partialsDir: path.join(__dirname, "views/email"),
       layoutsDir: path.join(__dirname, "views/email"),
-      defaultLayout: "reward.html", // email template file
+      defaultLayout: false,
     },
     viewPath: path.join(__dirname, "views/email"),
     extName: ".html",
@@ -223,19 +223,19 @@ app.post("/validate-order-id", async (req, res) => {
     });
 
     if (Object.keys(order).length > 0) {
-      // // Get the order items
-      // const orderItems = await sellingPartner.callAPI({
-      //   operation: "getOrderItems",
-      //   endpoint: "orders",
-      //   path: {
-      //     orderId: orderId,
-      //   },
-      // });
+      // Get the order items
+      const orderItems = await sellingPartner.callAPI({
+        operation: "getOrderItems",
+        endpoint: "orders",
+        path: {
+          orderId: orderId,
+        },
+      });
 
-      // // Extract the ASINs from the order items
-      // const asins = orderItems.OrderItems.map((item) => item.ASIN);
+      // Extract the ASINs from the order items
+      const asins = orderItems.OrderItems.map((item) => item.ASIN);
 
-      res.status(200).send({ valid: true });
+      res.status(200).send({ valid: true, asin: asins });
     } else {
       res.status(400).send({ valid: false });
     }
@@ -302,14 +302,13 @@ app.post("/submit-review", async (req, res) => {
 
       // Email to the user
       let userMailOptions = {
-        from: process.env.GMAIL_USER, // Sender address
-        to: formData.email, // User's email
-        subject: "Study Key FREE gift", // Subject line
-        template: "reward", // Name of the template file without extension
+        from: process.env.GMAIL_USER,
+        to: formData.email,
+        subject: "Study Key FREE gift",
+        template: "reward",
         context: {
-          // Variables to replace in the template
           name: formData.name,
-          url, // Include the URL in the email
+          url: url,
         },
       };
 
@@ -870,7 +869,8 @@ app.get("/admin/orders/pdf", authenticateAdmin, async (req, res) => {
 });
 
 const BonusSchema = new Schema({
-  name: String,
+  firstName: String,
+  lastName: String,
   language: String,
   email: String,
   orderId: { type: String, unique: true },
@@ -881,7 +881,6 @@ const BonusSchema = new Schema({
     zipCode: String,
     country: String
   },
-  productSet: String,
   screenshot: String,
   createdAt: { type: Date, default: Date.now }
 });
@@ -908,7 +907,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
       zipCode,
       city,
       state,
-      productSet,
       page = 1, 
       limit = 10 
     } = req.query;
@@ -945,11 +943,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
     // Language filter
     if (language) {
       filter.language = language;
-    }
-    
-    // Product set filter
-    if (productSet) {
-      filter.productSet = productSet;
     }
     
     // Address filters
@@ -1002,11 +995,10 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
     let rows = bonuses.map(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toLocaleDateString() : 'N/A';
       return '<tr>' + 
-        '<td>' + (bonus.name || '-') + '</td>' +
+        '<td>' + (bonus.firstName || '-') + ' ' + (bonus.lastName || '-') + '</td>' +
         '<td>' + (bonus.email || '-') + '</td>' +
         '<td>' + (bonus.orderId || '-') + '</td>' +
         '<td>' + (bonus.language || '-') + '</td>' +
-        '<td>' + (bonus.productSet || '-') + '</td>' +
         '<td>' + (bonus.address?.street || '-') + '</td>' +
         '<td>' + (bonus.address?.city || '-') + '</td>' +
         '<td>' + (bonus.address?.state || '-') + '</td>' +
@@ -1019,7 +1011,7 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
     let paginationHTML = '';
     if (totalPages > 1) {
       paginationHTML += `<li class="page-item ${pageNum <= 1 ? 'disabled' : ''}">
-        <a class="page-link" href="?token=${req.query.token}&page=${pageNum - 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">Previous</a>
+        <a class="page-link" href="?token=${req.query.token}&page=${pageNum - 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}">Previous</a>
       </li>`;
       
       const startPage = Math.max(1, pageNum - 2);
@@ -1027,12 +1019,12 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
       
       for (let i = startPage; i <= endPage; i++) {
         paginationHTML += `<li class="page-item ${i === pageNum ? 'active' : ''}">
-          <a class="page-link" href="?token=${req.query.token}&page=${i}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">${i}</a>
+          <a class="page-link" href="?token=${req.query.token}&page=${i}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}">${i}</a>
         </li>`;
       }
       
       paginationHTML += `<li class="page-item ${pageNum >= totalPages ? 'disabled' : ''}">
-        <a class="page-link" href="?token=${req.query.token}&page=${pageNum + 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}">Next</a>
+        <a class="page-link" href="?token=${req.query.token}&page=${pageNum + 1}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}">Next</a>
       </li>`;
     }
 
@@ -1077,11 +1069,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
               </select>
             </div>
             <div class="col-md-3">
-              <label class="form-label">Product Set</label>
-              <input type="text" class="form-control" name="productSet" value="${productSet || ''}" placeholder="Product Set">
-            </div>
-            
-            <div class="col-md-3">
               <label class="form-label">Zip Code</label>
               <input type="text" class="form-control" name="zipCode" value="${zipCode || ''}" placeholder="Zip Code">
             </div>
@@ -1101,7 +1088,7 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
             <div class="col-12 mt-3">
               <button type="submit" class="btn btn-primary">Apply Filters</button>
               <a href="/admin/bonus?token=${req.query.token}" class="btn btn-secondary ms-2">Reset Filters</a>
-              <a href="/admin/bonus/csv?token=${req.query.token}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}${productSet ? '&productSet='+productSet : ''}" class="btn btn-success ms-2">Download CSV</a>
+              <a href="/admin/bonus/csv?token=${req.query.token}${startDate ? '&startDate='+startDate : ''}${endDate ? '&endDate='+endDate : ''}${language ? '&language='+language : ''}${searchTerm ? '&searchTerm='+searchTerm : ''}${zipCode ? '&zipCode='+zipCode : ''}${city ? '&city='+city : ''}${state ? '&state='+state : ''}" class="btn btn-success ms-2">Download CSV</a>
             </div>
           </form>
           
@@ -1113,7 +1100,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
                   <th>Email</th>
                   <th>Order ID</th>
                   <th>Language</th>
-                  <th>Product Set</th>
                   <th>Street</th>
                   <th>City</th>
                   <th>State</th>
@@ -1122,7 +1108,7 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
                 </tr>
               </thead>
               <tbody>
-                ${rows.length ? rows : '<tr><td colspan="10" class="text-center">No bonus claims found</td></tr>'}
+                ${rows.length ? rows : '<tr><td colspan="5" class="text-center">No bonus claims found</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -1150,7 +1136,7 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
   try {
     await connectToDatabase();
     
-    const { startDate, endDate, language, searchTerm, zipCode, city, state, productSet } = req.query;
+    const { startDate, endDate, language, searchTerm, zipCode, city, state } = req.query;
     
     let filter = {};
     
@@ -1177,7 +1163,6 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
     }
     
     if (language) filter.language = language;
-    if (productSet) filter.productSet = productSet;
     if (zipCode) filter['address.zipCode'] = zipCode;
     if (city) filter['address.city'] = { $regex: city, $options: 'i' };
     if (state) filter['address.state'] = { $regex: state, $options: 'i' };
@@ -1197,10 +1182,10 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
     const bonuses = await Bonus.find(filter).sort({ createdAt: -1 }).lean().exec();
     
     // Generate CSV content
-    let csv = 'Name,Email,Order ID,Language,Product Set,Street,City,State,Zip Code,Created Date\n';
+    let csv = 'Name,Email,Order ID,Language,Street,City,State,Zip Code,Created Date\n';
     bonuses.forEach(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toISOString().split('T')[0] : 'N/A';
-      csv += `"${bonus.name || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.productSet || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${date}"\n`;
+      csv += `"${bonus.firstName || ''} ${bonus.lastName || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${date}"\n`;
     });
     
     res.setHeader('Content-Type', 'text/csv');
@@ -1262,7 +1247,8 @@ app.post("/bonus-claim", async (req, res) => {
     }
 
     const bonus = new Bonus({
-      name: formData.name,
+      firstName: formData.firstName,
+      lastName: formData.lastName,
       language: formData.language,
       email: formData.email,
       orderId: formData.orderId,
@@ -1273,12 +1259,28 @@ app.post("/bonus-claim", async (req, res) => {
         zipCode: formData.address?.zipCode,
         country: formData.address?.country
       },
-      productSet: formData.productSet,
-      screenshot: formData.screenshotUrl, // Use the URL from the screenshot upload
+      screenshot: formData.screenshotUrl,
       createdAt: new Date()
     });
 
     await bonus.save();
+
+    // Determine the PDF file based on the user's language
+    let pdfFile;
+    if (formData.language === "English") {
+      pdfFile = englishPdfFile;
+    } else if (formData.language === "Spanish") {
+      pdfFile = spanishPdfFile;
+    } else {
+      // Default to English if the language is neither English nor Spanish
+      pdfFile = englishPdfFile;
+    }
+
+    // Generate a signed URL for the PDF
+    const [pdfUrl] = await pdfFile.getSignedUrl({
+      action: "read",
+      expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days from now
+    });
 
     // Email to the user
     let userMailOptions = {
@@ -1287,9 +1289,11 @@ app.post("/bonus-claim", async (req, res) => {
       subject: "Study Key Bonus Set Confirmation",
       template: "bonus_confirmation",
       context: {
-        name: formData.name,
-        productSet: formData.productSet,
-        address: formData.address
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        fullName: `${formData.firstName} ${formData.lastName}`,
+        address: formData.address,
+        pdfUrl: pdfUrl
       },
     };
 
@@ -1297,14 +1301,13 @@ app.post("/bonus-claim", async (req, res) => {
     let adminMailOptions = {
       from: process.env.GMAIL_USER,
       to: process.env.GMAIL_USER,
-      subject: `New Bonus Set Claim - ${formData.productSet}`,
+      subject: "New Bonus Set Claim",
       html: DOMPurify.sanitize(`
         <h1>New Bonus Set Claim</h1>
-        <p><strong>User Name:</strong> ${formData.name}</p>
+        <p><strong>User Name:</strong> ${formData.firstName} ${formData.lastName}</p>
         <p><strong>Email:</strong> ${formData.email}</p>
         <p><strong>Order ID:</strong> ${formData.orderId}</p>
         <p><strong>Language:</strong> ${formData.language}</p>
-        <p><strong>Product Set:</strong> ${formData.productSet}</p>
         <p><strong>Address:</strong></p>
         <p>${formData.address?.street || ''}</p>
         <p>${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.zipCode || ''}</p>
@@ -1340,7 +1343,7 @@ app.post("/bonus-claim", async (req, res) => {
 
     res.status(200).json({ 
       success: true, 
-      message: "Bonus claim processed successfully"
+      message: "Bonus claim processed successfully. Your submission is under review. You will receive the gift after review."
     });
 
   } catch (err) {

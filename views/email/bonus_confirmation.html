@@ -1,25 +1,31 @@
 <!-- views/email/bonus_confirmation.html -->
-<div>
-    <h2>Thank you for claiming your bonus set!</h2>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Study Key Bonus Set Confirmation</title>
+</head>
+<body>
+    <h1>Thank you for your submission!</h1>
     
-    <p>Dear {{name}},</p>
+    <p>Dear {{firstName}},</p>
     
-    <p>We're excited to confirm that we've received your bonus set claim. Here are the details of your claim:</p>
+    <p>Thank you for claiming your bonus set. Your submission is currently under review. This process typically takes 2-3 business days.</p>
     
-    <div style="background-color: #fff; padding: 15px; border-radius: 5px; margin: 20px 0;">
-        <p><strong>Product Set:</strong> {{productSet}}</p>
-        <p><strong>Shipping Address:</strong></p>
-        <p>
-            {{address.street}}<br>
-            {{address.city}}, {{address.state}} {{address.zipCode}}<br>
-            {{address.country}}
-        </p>
-    </div>
+    <p>Once your submission is approved, we will send you the following:</p>
+    <ul>
+        <li>A special gift PDF (available for 7 days): <a href="{{pdfUrl}}">Download Gift PDF</a></li>
+    </ul>
     
-    <p>Your bonus set will be shipped to the address provided above. You can expect to receive it within 5-7 business days.</p>
+    <p>Shipping Address:</p>
+    <p>
+        {{address.street}}<br>
+        {{address.city}}, {{address.state}} {{address.zipCode}}<br>
+        {{address.country}}
+    </p>
     
-    <p>If you have any questions or need to update your shipping information, please don't hesitate to contact us.</p>
+    <p>If you have any questions, please don't hesitate to contact us.</p>
     
     <p>Best regards,<br>
     The Study Key Team</p>
-</div>
+</body>
+</html>
