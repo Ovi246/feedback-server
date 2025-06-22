@@ -1310,7 +1310,7 @@ app.post("/bonus-claim", async (req, res) => {
     let adminMailOptions = {
       from: process.env.GMAIL_USER,
       to: process.env.GMAIL_USER,
-      subject: "New PDF + Sould Delight Claim",
+      subject: "New PDF + Soul Delight Claim",
       html: DOMPurify.sanitize(`
         <h1>PDF + Soul Delight Claim</h1>
         <p><strong>User Name:</strong> ${formData.firstName} ${formData.lastName}</p>
