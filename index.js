@@ -881,7 +881,7 @@ const BonusSchema = new Schema({
     zipCode: String,
     country: String
   },
-  screenshot: String,
+  screenshotUrl: String,
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -994,6 +994,13 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
     // Generate rows for the current page
     let rows = bonuses.map(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toLocaleDateString() : 'N/A';
+      
+      // Handle screenshot URL - check if it exists and create clickable link
+      let screenshotCell = '-';
+      if (bonus.screenshotUrl) {
+        screenshotCell = `<a href="${bonus.screenshotUrl}" target="_blank" class="btn btn-sm btn-outline-primary">View Screenshot</a>`;
+      }
+      
       return '<tr>' + 
         '<td>' + (bonus.firstName || '-') + ' ' + (bonus.lastName || '-') + '</td>' +
         '<td>' + (bonus.email || '-') + '</td>' +
@@ -1003,6 +1010,7 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
         '<td>' + (bonus.address?.city || '-') + '</td>' +
         '<td>' + (bonus.address?.state || '-') + '</td>' +
         '<td>' + (bonus.address?.zipCode || '-') + '</td>' +
+        '<td>' + screenshotCell + '</td>' +
         '<td>' + date + '</td>' +
         '</tr>';
     }).join('');
@@ -1104,11 +1112,12 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
                   <th>City</th>
                   <th>State</th>
                   <th>Zip Code</th>
+                  <th>Screenshot</th>
                   <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                ${rows.length ? rows : '<tr><td colspan="5" class="text-center">No bonus claims found</td></tr>'}
+                ${rows.length ? rows : '<tr><td colspan="10" class="text-center">No bonus claims found</td></tr>'}
               </tbody>
             </table>
           </div>
@@ -1182,10 +1191,10 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
     const bonuses = await Bonus.find(filter).sort({ createdAt: -1 }).lean().exec();
     
     // Generate CSV content
-    let csv = 'Name,Email,Order ID,Language,Street,City,State,Zip Code,Created Date\n';
+    let csv = 'Name,Email,Order ID,Language,Street,City,State,Zip Code,Screenshot URL,Created Date\n';
     bonuses.forEach(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toISOString().split('T')[0] : 'N/A';
-      csv += `"${bonus.firstName || ''} ${bonus.lastName || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${date}"\n`;
+      csv += `"${bonus.firstName || ''} ${bonus.lastName || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${bonus.screenshotUrl || ''}","${date}"\n`;
     });
     
     res.setHeader('Content-Type', 'text/csv');
@@ -1259,7 +1268,7 @@ app.post("/bonus-claim", async (req, res) => {
         zipCode: formData.address?.zipCode,
         country: formData.address?.country
       },
-      screenshot: formData.screenshotUrl,
+      screenshotUrl: formData.screenshotUrl,
       createdAt: new Date()
     });
 
@@ -1286,7 +1295,7 @@ app.post("/bonus-claim", async (req, res) => {
     let userMailOptions = {
       from: process.env.GMAIL_USER,
       to: formData.email,
-      subject: "Study Key Bonus Set Confirmation",
+      subject: "Study Key Bonus(Soul Delight) Set Confirmation",
       template: "bonus_confirmation",
       context: {
         firstName: formData.firstName,
@@ -1301,9 +1310,9 @@ app.post("/bonus-claim", async (req, res) => {
     let adminMailOptions = {
       from: process.env.GMAIL_USER,
       to: process.env.GMAIL_USER,
-      subject: "New PDF + Bonus Set Claim",
+      subject: "New PDF + Sould Delight Claim",
       html: DOMPurify.sanitize(`
-        <h1>New Bonus Set Claim</h1>
+        <h1>PDF + Soul Delight Claim</h1>
         <p><strong>User Name:</strong> ${formData.firstName} ${formData.lastName}</p>
         <p><strong>Email:</strong> ${formData.email}</p>
         <p><strong>Order ID:</strong> ${formData.orderId}</p>
@@ -1355,9 +1364,9 @@ app.post("/bonus-claim", async (req, res) => {
   }
 });
 
-// app.listen(5000, function (err) {
-//   if (err) console.log("Error in server setup");
-//   console.log("Server listening on Port", 5000);
-// });
+app.listen(5000, function (err) {
+  if (err) console.log("Error in server setup");
+  console.log("Server listening on Port", 5000);
+});
 
 module.exports = app;
