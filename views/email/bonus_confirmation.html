@@ -2,30 +2,81 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <style>
+        body {
+          font-family: Arial, sans-serif;
+        }
+        .container {
+          width: 100%;
+          margin: 0 auto;
+          background-color: #f8f9fa;
+          padding: 20px;
+          border-radius: 5px;
+        }
+        .container img {
+          width: 200px;
+          display: block;
+          margin: 0 auto;
+        }
+        .reward-email {
+          background-color: white;
+          margin: 0 auto;
+          width: 40%;
+        }
+        .reward-email-texts {
+          padding: 20px;
+        }
+        .reward-email h1 {
+          color: #6c757d;
+        }
+        .reward-email p {
+          color: #6c757d;
+        }
+        .reward-email img {
+          width: 100%;
+          background-color: white;
+          border-bottom: 10px solid blue;
+          border-bottom-left-radius: 10px;
+          border-bottom-right-radius: 10px;
+        }
+        .title {
+          font-weight: 900;
+        }
+      </style>
     <title>Study Key Bonus Set Confirmation</title>
 </head>
 <body>
-    <h1>Thank you for your submission!</h1>
+    <div class="container">
+        <img src="https://drive.usercontent.google.com/download?id=1xgMxGcHcCtDyjO_m6QqGZFTQVVDVC3vi" alt="studykey"/>
+        <div class="reward-email">
+          
+          <div class="reward-email-texts">
+            <h1>Thank you for your submission!</h1>
     
-    <p>Dear {{firstName}},</p>
+            <p>Dear {{firstName}},</p>
+            
+            <p>Thank you for claiming your bonus set. Your submission is currently under review. This process typically takes 2-3 business days.</p>
+            
+            <p>Once your submission is approved, we will send you the following:</p>
+            <ul>
+                <li>A special gift PDF (available for 7 days): <a href="{{pdfUrl}}">Download Gift PDF</a></li>
+            </ul>
+            
+            <p>Shipping Address:</p>
+            <p>
+                {{address.street}}<br>
+                {{address.city}}, {{address.state}} {{address.zipCode}}<br>
+                {{address.country}}
+            </p>
+            
+            <p>If you have any questions, please don't hesitate to contact us.</p>
+            <p>Best regards,<br>
+            The Study Key Team</p>
+          </div>
+          <img src="https://drive.usercontent.google.com/download?id=1M32rS3Ve3IIALoHrnKSD5yE8jwKZP3Oq" alt="studykey_header"/>
+        </div>
     
-    <p>Thank you for claiming your bonus set. Your submission is currently under review. This process typically takes 2-3 business days.</p>
     
-    <p>Once your submission is approved, we will send you the following:</p>
-    <ul>
-        <li>A special gift PDF (available for 7 days): <a href="{{pdfUrl}}">Download Gift PDF</a></li>
-    </ul>
     
-    <p>Shipping Address:</p>
-    <p>
-        {{address.street}}<br>
-        {{address.city}}, {{address.state}} {{address.zipCode}}<br>
-        {{address.country}}
-    </p>
-    
-    <p>If you have any questions, please don't hesitate to contact us.</p>
-    
-    <p>Best regards,<br>
-    The Study Key Team</p>
 </body>
 </html>

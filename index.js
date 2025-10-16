@@ -4,16 +4,7 @@ const rateLimit = require("express-rate-limit");
 const helmet = require("helmet");
 const SellingPartnerAPI = require("amazon-sp-api");
 const path = require("path");
-const multer = require("multer");
-const cloudinary = require("cloudinary").v2;
-
-// Configure multer for file uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit for images
-  },
-});
+ 
 
 const app = express();
 app.use(express.json());
@@ -184,32 +175,7 @@ let sellingPartner = new SellingPartnerAPI({
   },
 });
 
-// Configure Cloudinary
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-// Helper function to handle media uploads
-async function uploadToCloudinary(file, type) {
-  const b64 = Buffer.from(file.buffer).toString('base64');
-  const dataURI = `data:${file.mimetype};base64,${b64}`;
-  
-  return await cloudinary.uploader.upload(dataURI, {
-    folder: type === 'video' ? 'review-videos' : 'review-screenshots',
-    resource_type: 'auto',
-    public_id: `review-${Date.now()}`,
-    // Add specific options for videos
-    ...(type === 'video' && {
-      chunk_size: 6000000, // 6MB chunks
-      eager: [
-        { width: 720, height: 480, crop: "pad" }, // Lower resolution version
-      ],
-      eager_async: true,
-    })
-  });
-}
+ 
 
 app.post("/validate-order-id", async (req, res) => {
   const { orderId } = req.body;
@@ -881,7 +847,6 @@ const BonusSchema = new Schema({
     zipCode: String,
     country: String
   },
-  screenshotUrl: String,
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -994,13 +959,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
     // Generate rows for the current page
     let rows = bonuses.map(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toLocaleDateString() : 'N/A';
-      
-      // Handle screenshot URL - check if it exists and create clickable link
-      let screenshotCell = '-';
-      if (bonus.screenshotUrl) {
-        screenshotCell = `<a href="${bonus.screenshotUrl}" target="_blank" class="btn btn-sm btn-outline-primary">View Screenshot</a>`;
-      }
-      
       return '<tr>' + 
         '<td>' + (bonus.firstName || '-') + ' ' + (bonus.lastName || '-') + '</td>' +
         '<td>' + (bonus.email || '-') + '</td>' +
@@ -1010,7 +968,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
         '<td>' + (bonus.address?.city || '-') + '</td>' +
         '<td>' + (bonus.address?.state || '-') + '</td>' +
         '<td>' + (bonus.address?.zipCode || '-') + '</td>' +
-        '<td>' + screenshotCell + '</td>' +
         '<td>' + date + '</td>' +
         '</tr>';
     }).join('');
@@ -1112,7 +1069,6 @@ app.get("/admin/bonus", authenticateAdmin, async (req, res) => {
                   <th>City</th>
                   <th>State</th>
                   <th>Zip Code</th>
-                  <th>Screenshot</th>
                   <th>Date</th>
                 </tr>
               </thead>
@@ -1191,10 +1147,10 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
     const bonuses = await Bonus.find(filter).sort({ createdAt: -1 }).lean().exec();
     
     // Generate CSV content
-    let csv = 'Name,Email,Order ID,Language,Street,City,State,Zip Code,Screenshot URL,Created Date\n';
+    let csv = 'Name,Email,Order ID,Language,Street,City,State,Zip Code,Created Date\n';
     bonuses.forEach(bonus => {
       const date = bonus.createdAt ? new Date(bonus.createdAt).toISOString().split('T')[0] : 'N/A';
-      csv += `"${bonus.firstName || ''} ${bonus.lastName || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${bonus.screenshotUrl || ''}","${date}"\n`;
+      csv += `"${bonus.firstName || ''} ${bonus.lastName || ''}","${bonus.email || ''}","${bonus.orderId || ''}","${bonus.language || ''}","${bonus.address?.street || ''}","${bonus.address?.city || ''}","${bonus.address?.state || ''}","${bonus.address?.zipCode || ''}","${date}"\n`;
     });
     
     res.setHeader('Content-Type', 'text/csv');
@@ -1206,32 +1162,7 @@ app.get("/admin/bonus/csv", authenticateAdmin, async (req, res) => {
   }
 });
 
-// Route for handling screenshot uploads
-app.post("/upload-screenshot", upload.single("screenshot"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        message: "No file uploaded"
-      });
-    }
-
-    const result = await uploadToCloudinary(req.file, 'image');
-    
-    res.status(200).json({
-      success: true,
-      url: result.secure_url
-    });
-  } catch (err) {
-    console.error("Error uploading screenshot:", err);
-    res.status(500).json({
-      success: false,
-      message: err.message.includes('file size') 
-        ? "File size too large. Please upload a smaller file."
-        : "Error uploading file"
-    });
-  }
-});
+// Screenshot upload endpoint removed
 
 // Update bonus-claim route to accept regular form data
 app.post("/bonus-claim", async (req, res) => {
@@ -1268,7 +1199,6 @@ app.post("/bonus-claim", async (req, res) => {
         zipCode: formData.address?.zipCode,
         country: formData.address?.country
       },
-      screenshotUrl: formData.screenshotUrl,
       createdAt: new Date()
     });
 
@@ -1321,7 +1251,7 @@ app.post("/bonus-claim", async (req, res) => {
         <p>${formData.address?.street || ''}</p>
         <p>${formData.address?.city || ''}, ${formData.address?.state || ''} ${formData.address?.zipCode || ''}</p>
         <p>${formData.address?.country || ''}</p>
-        ${formData.screenshotUrl ? `<p><strong>Screenshot:</strong> <a href="${formData.screenshotUrl}">View Screenshot</a></p>` : ''}
+        
       `),
     };
 
@@ -1364,9 +1294,9 @@ app.post("/bonus-claim", async (req, res) => {
   }
 });
 
-app.listen(5000, function (err) {
-  if (err) console.log("Error in server setup");
-  console.log("Server listening on Port", 5000);
-});
+// app.listen(5000, function (err) {
+//   if (err) console.log("Error in server setup");
+//   console.log("Server listening on Port", 5000);
+// });
 
 module.exports = app;
