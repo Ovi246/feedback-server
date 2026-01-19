@@ -14,6 +14,7 @@ const cors = require("cors");
 const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
   "https://studykey-giveaway.vercel.app",
+  "https://studykey-riddles-server.vercel.app",
   // "http://localhost:5173",
   // "http://localhost:5000",
 ];
