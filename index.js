@@ -15,6 +15,7 @@ const allowedOrigins = [
   "https://studykey-riddles.vercel.app",
   "https://studykey-giveaway.vercel.app",
   // "http://localhost:5173",
+  // "http://localhost:5000",
 ];
 
 const nodemailer = require("nodemailer");
@@ -25,31 +26,48 @@ const DOMPurify = createDOMPurify(window);
 
 const admin = require("firebase-admin");
 
-const serviceAccount = {
-  type: "service_account",
-  project_id: process.env.FIREBASE_PROJECT_ID,
-  private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
-  private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-  client_email: process.env.FIREBASE_CLIENT_EMAIL,
-  client_id: process.env.FIREBASE_CLIENT_ID,
-  auth_uri: "https://accounts.google.com/o/oauth2/auth",
-  token_uri: "https://oauth2.googleapis.com/token",
-  auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
-  client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
-};
-
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    storageBucket: "studykey-b1dc7.appspot.com",
-  });
+let serviceAccount;
+try {
+  serviceAccount = {
+    type: "service_account",
+    project_id: process.env.FIREBASE_PROJECT_ID,
+    private_key_id: process.env.FIREBASE_PRIVATE_KEY_ID,
+    private_key: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+    client_email: process.env.FIREBASE_CLIENT_EMAIL,
+    client_id: process.env.FIREBASE_CLIENT_ID,
+    auth_uri: "https://accounts.google.com/o/oauth2/auth",
+    token_uri: "https://oauth2.googleapis.com/token",
+    auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+    client_x509_cert_url: process.env.FIREBASE_CLIENT_CERT_URL,
+  };
+  
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      storageBucket: "studykey-b1dc7.appspot.com",
+    });
+  }
+} catch (error) {
+  console.warn('⚠️  WARNING: Firebase configuration not found. Some features may not work properly.');
+  console.warn('Error:', error.message);
 }
 
-const bucket = admin.storage().bucket();
-const englishPdfFile = bucket.file("reward_english.pdf");
-const spanishPdfFile = bucket.file("reward_spanish.pdf");
+let bucket, englishPdfFile, spanishPdfFile;
+try {
+  bucket = admin.storage().bucket();
+  englishPdfFile = bucket.file("reward_english.pdf");
+  spanishPdfFile = bucket.file("reward_spanish.pdf");
+} catch (error) {
+  console.warn('⚠️  WARNING: Could not initialize Firebase Storage. PDF downloads may not work properly.');
+  console.warn('Error:', error.message);
+  // Initialize with dummy objects to prevent crashes
+  bucket = null;
+  englishPdfFile = null;
+  spanishPdfFile = null;
+}
 
 const mongoose = require("mongoose");
+const FeedbackTracker = require('./models/FeedbackTracker');
 require("dotenv").config();
 
 // MongoDB connection optimization
@@ -134,6 +152,11 @@ transporter.use(
 );
 
 // Completely disable Helmet CSP to make the admin page work properly
+const ejs = require('ejs');
+
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 app.use(
   helmet({
     contentSecurityPolicy: false // Completely disable CSP
@@ -163,22 +186,36 @@ app.use(
   })
 );
 
-let sellingPartner = new SellingPartnerAPI({
-  region: "na", // The region of the selling partner API endpoint ("eu", "na" or "fe")
-  refresh_token: process.env.REFRESH_TOKEN, // The refresh token of your app user
-  options: {
-    credentials: {
-      SELLING_PARTNER_APP_CLIENT_ID: process.env.SELLING_PARTNER_APP_CLIENT_ID,
-      SELLING_PARTNER_APP_CLIENT_SECRET:
-        process.env.SELLING_PARTNER_APP_CLIENT_SECRET,
+let sellingPartner;
+try {
+  sellingPartner = new SellingPartnerAPI({
+    region: "na", // The region of the selling partner API endpoint ("eu", "na" or "fe")
+    refresh_token: process.env.REFRESH_TOKEN, // The refresh token of your app user
+    options: {
+      credentials: {
+        SELLING_PARTNER_APP_CLIENT_ID: process.env.SELLING_PARTNER_APP_CLIENT_ID,
+        SELLING_PARTNER_APP_CLIENT_SECRET:
+          process.env.SELLING_PARTNER_APP_CLIENT_SECRET,
+      },
     },
-  },
-});
+  });
+} catch (error) {
+  console.warn('⚠️  WARNING: Amazon SP API credentials not found. Order validation may not work properly.');
+  console.warn('Error:', error.message);
+  sellingPartner = null;
+}
 
  
 
 app.post("/validate-order-id", async (req, res) => {
   const { orderId } = req.body;
+  
+  if (!sellingPartner) {
+    return res.status(500).send({ 
+      error: "Amazon SP API is not configured properly. Please contact the administrator." 
+    });
+  }
+  
   try {
     const order = await sellingPartner.callAPI({
       operation: "getOrder",
@@ -244,6 +281,7 @@ app.post("/submit-review", async (req, res) => {
       // Save the order to the database with explicit try/catch
       try {
         await order.save();
+        
       } catch (dbError) {
         // Check if this is a duplicate email error
         if (dbError.code === 11000) {
@@ -258,6 +296,24 @@ app.post("/submit-review", async (req, res) => {
           success: false, 
           message: "Database error: " + dbError.message 
         });
+      }
+      
+      // Create a feedback tracker for this order
+      try {
+        const feedbackTracker = new FeedbackTracker({
+          orderId: formData.orderId,
+          customerEmail: formData.email,
+          customerName: formData.name,
+          productName: formData.set,
+          submissionDate: new Date(),
+          emailSchedule: FeedbackTracker.createScheduledDates(new Date())
+        });
+        
+        await feedbackTracker.save();
+        console.log(`Feedback tracker created for order: ${formData.orderId}`);
+      } catch (trackerErr) {
+        console.error('Error creating feedback tracker:', trackerErr);
+        // Continue with the process even if tracker creation fails
       }
 
       // Generate a signed URL for the PDF
@@ -344,7 +400,7 @@ app.get("/api/location", async (req, res) => {
 
 // Admin authentication middleware
 const authenticateAdmin = (req, res, next) => {
-  const { token } = req.query;
+  const token = req.headers['x-admin-token'] || req.query.token;
   if (!token || token !== process.env.ADMIN_SECRET_TOKEN) {
     return res.status(401).json({ success: false, message: "Unauthorized" });
   }
@@ -1203,6 +1259,24 @@ app.post("/bonus-claim", async (req, res) => {
     });
 
     await bonus.save();
+    
+    // Create a feedback tracker for this order
+    try {
+      const feedbackTracker = new FeedbackTracker({
+        orderId: formData.orderId,
+        customerEmail: formData.email,
+        customerName: `${formData.firstName} ${formData.lastName}`,
+        productName: 'Bonus Set',
+        submissionDate: new Date(),
+        emailSchedule: FeedbackTracker.createScheduledDates(new Date())
+      });
+      
+      await feedbackTracker.save();
+      console.log(`Feedback tracker created for order: ${formData.orderId}`);
+    } catch (trackerErr) {
+      console.error('Error creating feedback tracker:', trackerErr);
+      // Continue with the process even if tracker creation fails
+    }
 
     // Determine the PDF file based on the user's language
     let pdfFile;
@@ -1291,6 +1365,98 @@ app.post("/bonus-claim", async (req, res) => {
       success: false, 
       message: "Error: " + err.message 
     });
+  }
+});
+
+
+
+// Import admin feedback routes
+const feedbackRoutes = require('./routes/admin/feedback');
+
+// Mount admin feedback routes with authentication
+app.use('/api/admin', authenticateAdmin, feedbackRoutes);
+
+// Admin feedback management UI routes
+app.get('/admin/feedback', authenticateAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const search = req.query.search || '';
+    const status = req.query.status || '';
+    
+    const query = {};
+    if (status) {
+      query.status = status;
+    }
+    if (search) {
+      query.$or = [
+        { orderId: { $regex: search, $options: 'i' } },
+        { customerName: { $regex: search, $options: 'i' } },
+        { customerEmail: { $regex: search, $options: 'i' } },
+      ];
+    }
+    
+    const skip = (page - 1) * limit;
+    
+    const [trackers, total] = await Promise.all([
+      FeedbackTracker.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      FeedbackTracker.countDocuments(query)
+    ]);
+    
+    const stats = await FeedbackTracker.aggregate([
+      {
+        $group: {
+          _id: '$status',
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+    
+    const statusCounts = stats.reduce((acc, stat) => {
+      acc[stat._id] = stat.count;
+      return acc;
+    }, {});
+    
+    const formatDate = (date) => new Date(date).toLocaleDateString();
+    
+    res.render('admin/feedback-manager', {
+      token: req.query.token,
+      trackers,
+      search,
+      status,
+      pagination: {
+        page,
+        pages: Math.ceil(total / limit),
+      },
+      stats: {
+        total,
+        pending: statusCounts.pending || 0,
+        reviewed: statusCounts.reviewed || 0,
+        unreviewed: statusCounts.unreviewed || 0,
+      },
+      formatDate
+    });
+  } catch (error) {
+    console.error('Error loading feedback manager:', error);
+    res.status(500).json({ success: false, message: 'Error loading feedback manager' });
+  }
+});
+
+app.get('/admin/feedback/templates', authenticateAdmin, async (req, res) => {
+  try {
+    await connectToDatabase();
+    
+    res.render('admin/email-templates', {
+      token: req.query.token
+    });
+  } catch (error) {
+    console.error('Error loading email templates:', error);
+    res.status(500).json({ success: false, message: 'Error loading email templates' });
   }
 });
 

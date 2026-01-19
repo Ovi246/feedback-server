@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{customerName}}, how's your Study Key product?</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+  <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color: #f4f4f4;">
+    <tr>
+      <td style="padding: 20px 0;">
+        <table role="presentation" cellspacing="0" cellpadding="0" border="0" width="600" align="center" style="background-color: #ffffff; border-radius: 8px;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 30px 30px 20px 30px; text-align: center;">
+              <h1 style="color: #333333; margin: 0; font-size: 24px;">Hi {{customerName}}! 👋</h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 0 30px 20px 30px;">
+              <p style="margin: 0 0 15px 0; font-size: 16px; color: #555555; line-height: 1.5;">
+                It's been 3 days since you claimed your Study Key reward. We hope you're enjoying <strong>{{productName}}</strong>!
+              </p>
+              
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #555555; line-height: 1.5;">
+                <strong>Would you mind sharing your experience?</strong>
+              </p>
+              
+              <p style="margin: 0 0 30px 0; font-size: 16px; color: #555555; line-height: 1.5;">
+                Your honest Amazon review helps us improve and helps other customers make informed decisions. It only takes a minute!
+              </p>
+              
+              <table role="presentation" cellspacing="0" cellpadding="0" border="0" style="margin: 0 auto 30px auto;">
+                <tr>
+                  <td style="border-radius: 5px; background-color: #FF9900;">
+                    <a href="{{reviewUrl}}" target="_blank" style="display: inline-block; padding: 15px 30px; font-family: Arial, sans-serif; font-size: 16px; color: #ffffff; text-decoration: none; font-weight: bold;">
+                      Write Your Review
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              
+              {{#if productUrl}}
+              <p style="margin: 0 0 20px 0; text-align: center;">
+                <a href="{{productUrl}}" target="_blank" style="color: #0066c0; text-decoration: none; font-size: 14px;">View {{productName}} on Amazon</a>
+              </p>
+              {{/if}}
+              
+              <p style="margin: 0 0 20px 0; font-size: 16px; color: #555555; line-height: 1.5;">
+                Thank you for being part of our community!
+              </p>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="padding: 20px 30px; text-align: center; background-color: #f9f9f9; border-top: 1px solid #dddddd; font-size: 12px; color: #666666;">
+              <p style="margin: 0;">
+                You're receiving this because you claimed a Study Key reward. If you've already left a review, thank you! You can ignore this email.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
