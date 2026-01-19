@@ -53,10 +53,16 @@ const loadEmailTemplate = async (dayNumber, customerName, productName = '', revi
   try {
     let html = fs.readFileSync(templatePath, 'utf8');
     // Replace placeholders
+    // Replace simple placeholders
     html = html.replace(/{{customerName}}/g, customerName);
     html = html.replace(/{{productName}}/g, productName || 'your product');
     html = html.replace(/{{reviewUrl}}/g, reviewUrl || 'https://www.amazon.com/review/create-review');
-    html = html.replace(/{{productUrl}}/g, productUrl || 'https://www.amazon.com');
+    
+    // Remove product URL section entirely (not needed)
+    html = html.replace(/<!-- PRODUCT_URL_SECTION -->[\s\S]*?<!-- \/PRODUCT_URL_SECTION -->/, '');
+    // Replace productUrl placeholder with empty string since we don't use it
+    html = html.replace(/{{productUrl}}/g, '');
+    
     return html;
   } catch (error) {
     console.error(`Error loading template for day ${dayNumber}:`, error);
@@ -71,7 +77,7 @@ const getDefaultEmailContent = (dayNumber, customerName, productName = '', revie
   const finalReviewUrl = reviewUrl || 'https://www.amazon.com/review/create-review';
   const finalProductUrl = productUrl || 'https://www.amazon.com';
   
-  return `
+  let htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <h2>Hi ${customerName}! 👋</h2>
       
@@ -88,10 +94,6 @@ const getDefaultEmailContent = (dayNumber, customerName, productName = '', revie
         </a>
       </div>
       
-      ${productUrl ? `<p style="text-align: center; margin: 20px 0;">
-        <a href="${finalProductUrl}" style="color: #0066c0; text-decoration: none;">View ${productDisplay} on Amazon</a>
-      </p>` : ''}
-      
       <p>Thank you for being part of our community!</p>
       
       <p style="color: #666; font-size: 12px; margin-top: 30px;">
@@ -99,6 +101,8 @@ const getDefaultEmailContent = (dayNumber, customerName, productName = '', revie
       </p>
     </div>
   `;
+  
+  return htmlContent;
 };
 
 // Get email subject by day (checks DB first, then defaults)
@@ -248,23 +252,47 @@ async function processPendingEmails() {
     console.log(`⏰ Time budget: ${RATE_LIMIT.VERCEL_TIMEOUT_MS}ms`);
     
     // First, let's see what records exist in the database
-    console.log('🔍 Querying for ALL active pending trackers...');
+    console.log('🔍 Querying for ALL feedback trackers (regardless of status)...');
     
-    const allTrackers = await FeedbackTracker.find({
-      isActive: true,
-      status: 'pending'
-    }).select('orderId customerEmail customerName emailSchedule.status emailSchedule.day3.scheduledDate emailSchedule.day7.scheduledDate emailSchedule.day14.scheduledDate emailSchedule.day30.scheduledDate');
+    const allTrackers = await FeedbackTracker.find({})
+      .select('orderId customerEmail customerName status isActive emailSchedule.status emailSchedule.day3.scheduledDate emailSchedule.day7.scheduledDate emailSchedule.day14.scheduledDate emailSchedule.day30.scheduledDate')
+      .limit(20); // Limit to 20 for logging
     
-    console.log(`📊 Found ${allTrackers.length} active pending trackers in total`);
+    console.log(`📊 Found ${allTrackers.length} total trackers in database`);
     if (allTrackers.length > 0) {
-      console.log('All active trackers:', allTrackers.map(t => ({
+      console.log('All trackers:', allTrackers.map(t => ({
         orderId: t.orderId,
+        status: t.status,
+        isActive: t.isActive,
         day3: t.emailSchedule.day3.scheduledDate?.toISOString(),
         day7: t.emailSchedule.day7.scheduledDate?.toISOString(),
         day14: t.emailSchedule.day14.scheduledDate?.toISOString(),
         day30: t.emailSchedule.day30.scheduledDate?.toISOString()
       })));
+      
+      // Show breakdown by status
+      const statusBreakdown = allTrackers.reduce((acc, tracker) => {
+        acc[tracker.status] = (acc[tracker.status] || 0) + 1;
+        return acc;
+      }, {});
+      
+      const activeBreakdown = allTrackers.reduce((acc, tracker) => {
+        const key = tracker.isActive ? 'active' : 'inactive';
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
+      
+      console.log('Status breakdown:', statusBreakdown);
+      console.log('Active/inactive breakdown:', activeBreakdown);
     }
+    
+    // Now check specifically for active pending trackers
+    const activePendingTrackers = await FeedbackTracker.find({
+      isActive: true,
+      status: 'pending'
+    }).select('orderId customerEmail customerName status isActive');
+    
+    console.log(`📊 Found ${activePendingTrackers.length} active pending trackers`);
     
     // Find all active trackers with emails due today (optimized query)
     console.log('🔍 Querying for pending email trackers due TODAY...');

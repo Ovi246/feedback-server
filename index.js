@@ -305,11 +305,95 @@ app.post("/submit-review", async (req, res) => {
       
       // Create a feedback tracker for this order
       try {
+        // Fetch product details from Amazon SP API if available
+        let productDetails = {};
+        
+        if (sellingPartner && formData.orderId) {
+          try {
+            console.log(`Fetching product details for order: ${formData.orderId}`);
+            
+            // Get order details
+            const order = await sellingPartner.callAPI({
+              operation: "getOrder",
+              endpoint: "orders",
+              path: {
+                orderId: formData.orderId,
+              },
+            });
+            
+            if (order && Object.keys(order).length > 0) {
+              // Get the order items
+              const orderItems = await sellingPartner.callAPI({
+                operation: "getOrderItems",
+                endpoint: "orders",
+                path: {
+                  orderId: formData.orderId,
+                },
+              });
+              
+              if (orderItems && orderItems.OrderItems && orderItems.OrderItems.length > 0) {
+                const firstItem = orderItems.OrderItems[0]; // Use the first item
+                const asin = firstItem.ASIN;
+                const sku = firstItem.SellerSKU;
+                
+                // Get product details using catalog items API
+                try {
+                  const catalogItems = await sellingPartner.callAPI({
+                    operation: "listCatalogItems",
+                    endpoint: "catalog-items",
+                    query: {
+                      marketplaceIds: ["ATVPDKIKX0DER"], // US marketplace
+                      asins: [asin]
+                    }
+                  });
+                  
+                  if (catalogItems && catalogItems.Items && catalogItems.Items.length > 0) {
+                    const product = catalogItems.Items[0];
+                    productDetails.productName = product.ItemName || formData.set;
+                    productDetails.asin = asin;
+                    productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${asin}`;
+                    productDetails.productUrl = `https://www.amazon.com/dp/${asin}`;
+                    
+                    console.log(`Fetched product details: ${productDetails.productName}, ASIN: ${asin}`);
+                  } else {
+                    // If catalog API doesn't work, use basic details
+                    productDetails.productName = formData.set;
+                    productDetails.asin = asin;
+                    productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${asin}`;
+                    productDetails.productUrl = `https://www.amazon.com/dp/${asin}`;
+                    
+                    console.log(`Using basic product details: ASIN: ${asin}`);
+                  }
+                } catch (catalogError) {
+                  console.log(`Catalog API failed, using basic details: ${catalogError.message}`);
+                  // Use basic details from order items
+                  productDetails.productName = formData.set;
+                  productDetails.asin = firstItem.ASIN;
+                  productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${firstItem.ASIN}`;
+                  productDetails.productUrl = `https://www.amazon.com/dp/${firstItem.ASIN}`;
+                }
+              }
+            }
+          } catch (spError) {
+            console.log(`Failed to fetch product details from SP API: ${spError.message}`);
+            // Fallback to original data
+            productDetails.productName = formData.set;
+            productDetails.reviewUrl = 'https://www.amazon.com/review/create-review';
+          }
+        } else {
+          // If SP API is not available, use original data
+          productDetails.productName = formData.set;
+          productDetails.reviewUrl = 'https://www.amazon.com/review/create-review';
+        }
+        
         const feedbackTracker = new FeedbackTracker({
           orderId: formData.orderId,
           customerEmail: formData.email,
           customerName: formData.name,
-          productName: formData.set,
+          productName: productDetails.productName || formData.set,
+          asin: productDetails.asin,
+          productUrl: productDetails.productUrl,
+          reviewUrl: productDetails.reviewUrl,
           submissionDate: new Date(),
           emailSchedule: FeedbackTracker.createScheduledDates(new Date())
         });
@@ -1267,11 +1351,95 @@ app.post("/bonus-claim", async (req, res) => {
     
     // Create a feedback tracker for this order
     try {
+      // Fetch product details from Amazon SP API if available
+      let productDetails = {};
+      
+      if (sellingPartner && formData.orderId) {
+        try {
+          console.log(`Fetching product details for order: ${formData.orderId}`);
+          
+          // Get order details
+          const order = await sellingPartner.callAPI({
+            operation: "getOrder",
+            endpoint: "orders",
+            path: {
+              orderId: formData.orderId,
+            },
+          });
+          
+          if (order && Object.keys(order).length > 0) {
+            // Get the order items
+            const orderItems = await sellingPartner.callAPI({
+              operation: "getOrderItems",
+              endpoint: "orders",
+              path: {
+                orderId: formData.orderId,
+              },
+            });
+            
+            if (orderItems && orderItems.OrderItems && orderItems.OrderItems.length > 0) {
+              const firstItem = orderItems.OrderItems[0]; // Use the first item
+              const asin = firstItem.ASIN;
+              const sku = firstItem.SellerSKU;
+              
+              // Get product details using catalog items API
+              try {
+                const catalogItems = await sellingPartner.callAPI({
+                  operation: "listCatalogItems",
+                  endpoint: "catalog-items",
+                  query: {
+                    marketplaceIds: ["ATVPDKIKX0DER"], // US marketplace
+                    asins: [asin]
+                  }
+                });
+                
+                if (catalogItems && catalogItems.Items && catalogItems.Items.length > 0) {
+                  const product = catalogItems.Items[0];
+                  productDetails.productName = product.ItemName || 'Bonus Set';
+                  productDetails.asin = asin;
+                  productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${asin}`;
+                  productDetails.productUrl = `https://www.amazon.com/dp/${asin}`;
+                  
+                  console.log(`Fetched product details: ${productDetails.productName}, ASIN: ${asin}`);
+                } else {
+                  // If catalog API doesn't work, use basic details
+                  productDetails.productName = 'Bonus Set';
+                  productDetails.asin = asin;
+                  productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${asin}`;
+                  productDetails.productUrl = `https://www.amazon.com/dp/${asin}`;
+                  
+                  console.log(`Using basic product details: ASIN: ${asin}`);
+                }
+              } catch (catalogError) {
+                console.log(`Catalog API failed, using basic details: ${catalogError.message}`);
+                // Use basic details from order items
+                productDetails.productName = 'Bonus Set';
+                productDetails.asin = firstItem.ASIN;
+                productDetails.reviewUrl = `https://www.amazon.com/review/create-review?asin=${firstItem.ASIN}`;
+                productDetails.productUrl = `https://www.amazon.com/dp/${firstItem.ASIN}`;
+              }
+            }
+          }
+        } catch (spError) {
+          console.log(`Failed to fetch product details from SP API: ${spError.message}`);
+          // Fallback to original data
+          productDetails.productName = 'Bonus Set';
+          productDetails.reviewUrl = 'https://www.amazon.com/review/create-review';
+        }
+      } else {
+        // If SP API is not available, use original data
+        productDetails.productName = 'Bonus Set';
+        productDetails.reviewUrl = 'https://www.amazon.com/review/create-review';
+      }
+      
       const feedbackTracker = new FeedbackTracker({
         orderId: formData.orderId,
         customerEmail: formData.email,
         customerName: `${formData.firstName} ${formData.lastName}`,
-        productName: 'Bonus Set',
+        productName: productDetails.productName || 'Bonus Set',
+        asin: productDetails.asin,
+        productUrl: productDetails.productUrl,
+        reviewUrl: productDetails.reviewUrl,
         submissionDate: new Date(),
         emailSchedule: FeedbackTracker.createScheduledDates(new Date())
       });
