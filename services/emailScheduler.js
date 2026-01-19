@@ -243,10 +243,31 @@ async function processPendingEmails() {
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1); // Start of tomorrow
     
+    console.log(`📅 Looking for emails scheduled between ${today.toISOString()} and ${tomorrow.toISOString()}`);
+    
     console.log(`⏰ Time budget: ${RATE_LIMIT.VERCEL_TIMEOUT_MS}ms`);
     
+    // First, let's see what records exist in the database
+    console.log('🔍 Querying for ALL active pending trackers...');
+    
+    const allTrackers = await FeedbackTracker.find({
+      isActive: true,
+      status: 'pending'
+    }).select('orderId customerEmail customerName emailSchedule.status emailSchedule.day3.scheduledDate emailSchedule.day7.scheduledDate emailSchedule.day14.scheduledDate emailSchedule.day30.scheduledDate');
+    
+    console.log(`📊 Found ${allTrackers.length} active pending trackers in total`);
+    if (allTrackers.length > 0) {
+      console.log('All active trackers:', allTrackers.map(t => ({
+        orderId: t.orderId,
+        day3: t.emailSchedule.day3.scheduledDate?.toISOString(),
+        day7: t.emailSchedule.day7.scheduledDate?.toISOString(),
+        day14: t.emailSchedule.day14.scheduledDate?.toISOString(),
+        day30: t.emailSchedule.day30.scheduledDate?.toISOString()
+      })));
+    }
+    
     // Find all active trackers with emails due today (optimized query)
-    console.log('🔍 Querying for pending email trackers...');
+    console.log('🔍 Querying for pending email trackers due TODAY...');
     
     const trackers = await FeedbackTracker.find({
       isActive: true,
