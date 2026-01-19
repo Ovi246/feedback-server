@@ -88,8 +88,9 @@ async function connectToDatabase() {
       socketTimeoutMS: 45000,
       connectTimeoutMS: 30000, // Increase timeout to 30 seconds
       maxPoolSize: 10,
-      useNewUrlParser: true,
-      useUnifiedTopology: true
+      // useNewUrlParser and useUnifiedTopology are deprecated in newer versions
+      // Use the new unified topology
+      family: 4 // Use IPv4 only
     });
 
     cachedConnection = conn;

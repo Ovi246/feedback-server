@@ -15,9 +15,11 @@ async function connectToDatabase() {
   
   try {
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      serverSelectionTimeoutMS: 5000, // Fail fast if can't connect
-      socketTimeoutMS: 10000,
+      serverSelectionTimeoutMS: 30000, // Increase timeout for serverless
+      socketTimeoutMS: 45000,
+      connectTimeoutMS: 30000,
       maxPoolSize: 1, // Minimal for serverless
+      family: 4 // Use IPv4 only
     });
     
     cachedConnection = conn;
