@@ -165,6 +165,9 @@ app.use(
   })
 );
 
+// Enable trust proxy for Vercel (fixes express-rate-limit warning)
+app.set('trust proxy', 1);
+
 // Limit requests to 100 per hour per IP
 const limiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hour
@@ -1377,6 +1380,9 @@ const feedbackRoutes = require('./routes/admin/feedback');
 
 // Mount admin feedback routes with authentication
 app.use('/api/admin', authenticateAdmin, feedbackRoutes);
+
+// Mount cron job route
+app.use('/api/cron', require('./api/cron/process-emails'));
 
 // Admin feedback management UI routes
 app.get('/admin/feedback', authenticateAdmin, async (req, res) => {

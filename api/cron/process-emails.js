@@ -1,3 +1,5 @@
+const express = require('express');
+const router = express.Router();
 const { processPendingEmails } = require('../../services/emailScheduler');
 const mongoose = require('mongoose');
 
@@ -37,7 +39,7 @@ async function connectToDatabase() {
  * 
  * Vercel Cron Schedule: 0 9 * * * (Daily at 9 AM UTC)
  */
-module.exports = async (req, res) => {
+router.get('/process-emails', async (req, res) => {
   const startTime = Date.now();
   
   // Log immediately to show cron started
@@ -121,4 +123,6 @@ module.exports = async (req, res) => {
       timestamp: new Date().toISOString()
     });
   }
-};
+});
+
+module.exports = router;
