@@ -189,6 +189,8 @@
         async function updateStatus(orderId, status) {
             if (confirm(`Are you sure you want to update status to ${status}?`)) {
                 try {
+                    console.log('Sending status update request for order:', orderId, 'to status:', status);
+                    
                     const response = await fetch(`/api/admin/feedback-trackers/${orderId}/status`, {
                         method: 'PATCH',
                         headers: {
@@ -198,15 +200,21 @@
                         body: JSON.stringify({ status })
                     });
                     
+                    console.log('Response status:', response.status);
+                    
                     if (response.ok) {
+                        const result = await response.json();
+                        console.log('Status update successful:', result);
                         alert('Status updated successfully!');
                         location.reload();
                     } else {
-                        alert('Failed to update status');
+                        const errorResult = await response.json();
+                        console.error('Status update failed:', errorResult);
+                        alert(`Failed to update status: ${errorResult.message || 'Unknown error'}`);
                     }
                 } catch (error) {
-                    console.error('Error updating status:', error);
-                    alert('Error updating status');
+                    console.error('Network error updating status:', error);
+                    alert('Network error updating status: ' + error.message);
                 }
             }
         }

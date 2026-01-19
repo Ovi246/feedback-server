@@ -87,25 +87,34 @@ router.get('/feedback-trackers/:orderId', async (req, res) => {
 // Update feedback tracker status
 router.patch('/feedback-trackers/:orderId/status', async (req, res) => {
   try {
+    console.log('Status update request received for order:', req.params.orderId);
+    console.log('New status:', req.body.status);
+    
     await connectToDatabase();
     
     const { status } = req.body;
     const tracker = await FeedbackTracker.findOne({ orderId: req.params.orderId });
     
+    console.log('Tracker found:', !!tracker);
+    
     if (!tracker) {
+      console.log('Feedback tracker not found for orderId:', req.params.orderId);
       return res.status(404).json({
         success: false,
         message: 'Feedback tracker not found',
       });
     }
     
+    console.log('Validating status:', status);
     if (['pending', 'reviewed', 'unreviewed', 'cancelled'].indexOf(status) === -1) {
+      console.log('Invalid status provided:', status);
       return res.status(400).json({
         success: false,
         message: 'Invalid status',
       });
     }
     
+    console.log('Updating status to:', status);
     if (status === 'reviewed') {
       await tracker.markAsReviewed();
     } else if (status === 'unreviewed') {
@@ -118,6 +127,8 @@ router.patch('/feedback-trackers/:orderId/status', async (req, res) => {
       await tracker.save();
     }
     
+    console.log('Status updated successfully for order:', req.params.orderId);
+    
     res.json({
       success: true,
       message: 'Status updated successfully',
@@ -125,9 +136,13 @@ router.patch('/feedback-trackers/:orderId/status', async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating feedback tracker status:', error);
+    console.error('Error stack:', error.stack);
+    console.error('Request params:', req.params);
+    console.error('Request body:', req.body);
+    
     res.status(500).json({
       success: false,
-      message: 'Error updating feedback tracker status',
+      message: 'Error updating feedback tracker status: ' + error.message,
     });
   }
 });

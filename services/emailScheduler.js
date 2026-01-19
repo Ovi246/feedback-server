@@ -246,6 +246,8 @@ async function processPendingEmails() {
     console.log(`⏰ Time budget: ${RATE_LIMIT.VERCEL_TIMEOUT_MS}ms`);
     
     // Find all active trackers with emails due today (optimized query)
+    console.log('🔍 Querying for pending email trackers...');
+    
     const trackers = await FeedbackTracker.find({
       isActive: true,
       status: 'pending',
@@ -271,9 +273,18 @@ async function processPendingEmails() {
     .select('orderId customerEmail customerName productName asin reviewUrl productUrl emailSchedule status')
     .limit(RATE_LIMIT.MAX_EMAILS_PER_RUN);
     
-    console.log(`Found ${trackers.length} trackers with pending emails for today`);
+    console.log(`📊 Found ${trackers.length} trackers with pending emails for today`);
     if (trackers.length > 0) {
-      console.log('Processing trackers:', trackers.map(t => t.orderId));
+      console.log('Processing trackers:', trackers.map(t => ({
+        orderId: t.orderId,
+        email: t.customerEmail,
+        scheduledDates: {
+          day3: t.emailSchedule.day3.scheduledDate,
+          day7: t.emailSchedule.day7.scheduledDate,
+          day14: t.emailSchedule.day14.scheduledDate,
+          day30: t.emailSchedule.day30.scheduledDate
+        }
+      })));
     }
     
     // Process each tracker with timeout protection
