@@ -1460,9 +1460,10 @@ app.get('/admin/feedback/templates', authenticateAdmin, async (req, res) => {
   }
 });
 
-// app.listen(5000, function (err) {
-//   if (err) console.log("Error in server setup");
-//   console.log("Server listening on Port", 5000);
+// app.listen(process.env.PORT || 5000, () => {
+//   console.log(`Server is running on port ${process.env.PORT || 3000}`);
 // });
 
+// Export functions for external use
 module.exports = app;
+module.exports.connectToDatabase = connectToDatabase;

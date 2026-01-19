@@ -126,7 +126,7 @@ const getEmailSubject = async (dayNumber, customerName) => {
  * Send a single feedback email via SendGrid
  */
 async function sendFeedbackEmail(tracker, dayNumber) {
-  console.log(`\n📧 Sending Day ${dayNumber} email to ${tracker.orderId}`);
+  console.log(`\n📧 Sending Day ${dayNumber} email to ${tracker.orderId} for ${tracker.customerEmail}`);
   
   try {
     // Check for SendGrid configuration
@@ -137,6 +137,8 @@ async function sendFeedbackEmail(tracker, dayNumber) {
       await tracker.save();
       return { success: false, error: error };
     }
+    
+    console.log(`📋 Loading template and subject for Day ${dayNumber}`);
     
     // Load template and subject (combined to save time)
     const [emailHtml, subject] = await Promise.all([
@@ -149,6 +151,9 @@ async function sendFeedbackEmail(tracker, dayNumber) {
       ),
       getEmailSubject(dayNumber, tracker.customerName)
     ]);
+    
+    console.log(`📤 Preparing to send email to: ${tracker.customerEmail}`);
+    console.log(`📝 Subject: ${subject.substring(0, 60)}...`);
     
     // Send email via SendGrid API (much faster than SMTP!)
     const msg = {
@@ -169,11 +174,12 @@ async function sendFeedbackEmail(tracker, dayNumber) {
       }
     };
     
+    console.log(`🚀 Attempting to send email via SendGrid...`);
     const response = await sgMail.send(msg);
     
     // Check response status (202 = accepted)
     if (response[0].statusCode === 202) {
-      console.log(`✅ Day ${dayNumber} sent to ${tracker.customerEmail}`);
+      console.log(`✅ Day ${dayNumber} email successfully sent to ${tracker.customerEmail}`);
       
       // Mark as sent
       tracker.emailSchedule[`day${dayNumber}`].sent = true;
@@ -195,7 +201,7 @@ async function sendFeedbackEmail(tracker, dayNumber) {
     }
     
   } catch (error) {
-    console.error(`\n❌ FAILED to send Day ${dayNumber} email!`);
+    console.error(`\n❌ FAILED to send Day ${dayNumber} email to ${tracker.customerEmail}!`);
     console.error(`Error: ${error.message}`);
     
     // Handle SendGrid specific errors
@@ -218,6 +224,9 @@ async function sendFeedbackEmail(tracker, dayNumber) {
  * Optimized for Vercel's 10-second timeout
  */
 async function processPendingEmails() {
+  console.log('\n=== EMAIL PROCESSING STARTED ===');
+  console.log('Time:', new Date().toISOString());
+  
   const startTime = Date.now();
   const results = {
     processed: 0,
@@ -263,6 +272,9 @@ async function processPendingEmails() {
     .limit(RATE_LIMIT.MAX_EMAILS_PER_RUN);
     
     console.log(`Found ${trackers.length} trackers with pending emails for today`);
+    if (trackers.length > 0) {
+      console.log('Processing trackers:', trackers.map(t => t.orderId));
+    }
     
     // Process each tracker with timeout protection
     for (const tracker of trackers) {
@@ -336,6 +348,8 @@ async function processPendingEmails() {
       });
     }
     console.log(`==============================\n`);
+    
+    console.log('=== EMAIL PROCESSING COMPLETED ===\n');
     
     return results;
     

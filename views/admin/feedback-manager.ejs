@@ -89,9 +89,11 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0"><i class="fas fa-list"></i> Feedback Trackers</h5>
-                    <a href="/admin/feedback/templates?token=<%= token %>" class="btn btn-outline-primary">
-                        <i class="fas fa-envelope"></i> Email Templates
-                    </a>
+                    <div class="btn-group">
+                        <a href="/admin/feedback/templates?token=<%= token %>" class="btn btn-outline-primary">
+                            <i class="fas fa-envelope"></i> Email Templates
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
@@ -148,8 +150,6 @@
                                             <ul class="dropdown-menu">
                                                 <li><a class="dropdown-item" href="#" onclick="updateStatus('<%= tracker.orderId %>', 'reviewed')">Mark as Reviewed</a></li>
                                                 <li><a class="dropdown-item" href="#" onclick="updateStatus('<%= tracker.orderId %>', 'cancelled')">Cancel Tracking</a></li>
-                                                <li><hr class="dropdown-divider"></li>
-                                                <li><a class="dropdown-item" href="#" onclick="sendTestEmail('<%= tracker.orderId %>')">Send Test Email</a></li>
                                             </ul>
                                         </div>
                                     </td>
@@ -211,27 +211,7 @@
             }
         }
         
-        async function sendTestEmail(orderId) {
-            try {
-                const response = await fetch(`/api/admin/test-email/${orderId}`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-Admin-Token': '<%= token %>'
-                    }
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    alert('Test email sent successfully!');
-                } else {
-                    alert('Failed to send test email: ' + result.message);
-                }
-            } catch (error) {
-                console.error('Error sending test email:', error);
-                alert('Error sending test email');
-            }
-        }
+        
     </script>
 </body>
 </html>
