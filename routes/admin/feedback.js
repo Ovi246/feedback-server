@@ -3,13 +3,15 @@ const router = express.Router();
 const FeedbackTracker = require('../../models/FeedbackTracker');
 const EmailTemplate = require('../../models/FeedbackTracker').EmailTemplate;
 
-// Middleware to connect to database
-const connectToDatabase = require('../../index').connectToDatabase;
+// The database connection is handled by the main app
+// No need to explicitly connect in routes as it's already established
+// We can directly use the models since they'll use the shared connection
 
 // Get all feedback trackers
 router.get('/feedback-trackers', async (req, res) => {
   try {
-    await connectToDatabase();
+    // Database should already be connected via main app
+    // await connectToDatabase(); // Skip connection here since main app handles it
     
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
@@ -60,8 +62,7 @@ router.get('/feedback-trackers', async (req, res) => {
 // Get feedback tracker by order ID
 router.get('/feedback-trackers/:orderId', async (req, res) => {
   try {
-    await connectToDatabase();
-    
+    // Database connection is already established by main app
     const tracker = await FeedbackTracker.findOne({ orderId: req.params.orderId });
     
     if (!tracker) {
@@ -90,7 +91,7 @@ router.patch('/feedback-trackers/:orderId/status', async (req, res) => {
     console.log('Status update request received for order:', req.params.orderId);
     console.log('New status:', req.body.status);
     
-    await connectToDatabase();
+    // Database connection should already be established by main app
     
     const { status } = req.body;
     const tracker = await FeedbackTracker.findOne({ orderId: req.params.orderId });
@@ -150,8 +151,7 @@ router.patch('/feedback-trackers/:orderId/status', async (req, res) => {
 // Get email templates
 router.get('/email-templates', async (req, res) => {
   try {
-    await connectToDatabase();
-    
+    // Database connection is already established by main app
     const templates = await EmailTemplate.find({}).sort({ day: 1 });
     
     res.json({
@@ -170,8 +170,7 @@ router.get('/email-templates', async (req, res) => {
 // Create or update email template
 router.post('/email-templates', async (req, res) => {
   try {
-    await connectToDatabase();
-    
+    // Database connection is already established by main app
     const { day, subject, htmlContent, isActive } = req.body;
     
     // Validate input
@@ -227,8 +226,7 @@ router.post('/email-templates', async (req, res) => {
 // Get email statistics
 router.get('/statistics', async (req, res) => {
   try {
-    await connectToDatabase();
-    
+    // Database connection is already established by main app
     const stats = await FeedbackTracker.aggregate([
       {
         $group: {
