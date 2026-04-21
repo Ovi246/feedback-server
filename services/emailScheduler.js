@@ -1,29 +1,28 @@
-const sgMail = require('@sendgrid/mail');
+const { Resend } = require('resend');
 const FeedbackTracker = require('../models/FeedbackTracker');
 const EmailTemplate = require('../models/FeedbackTracker').EmailTemplate;
 const fs = require('fs');
 const path = require('path');
 
-// Initialize SendGrid
-if (process.env.SENDGRID_API_KEY) {
-  sgMail.setApiKey(process.env.SENDGRID_API_KEY);
-  console.log('✅ SendGrid API initialized');
+// Initialize Resend
+let resend;
+if (process.env.RESEND_API_KEY) {
+  resend = new Resend(process.env.RESEND_API_KEY);
+  console.log('✅ Resend API initialized');
 } else {
-  console.warn('⚠️  WARNING: SENDGRID_API_KEY not found in environment variables!');
-  console.warn('Emails will fail to send. Please add SENDGRID_API_KEY to your .env file.');
+  console.warn('⚠️  WARNING: RESEND_API_KEY not found in environment variables!');
+  console.warn('Emails will fail to send. Please add RESEND_API_KEY to your .env file.');
 }
 
-// SendGrid configuration - much faster than Gmail SMTP!
 const RATE_LIMIT = {
-  MAX_EMAILS_PER_RUN: 10, // SendGrid API is fast, can handle more
-  DELAY_BETWEEN_EMAILS: 100, // 100ms delay (SendGrid is quick)
-  MAX_DAILY_EMAILS: 100, // SendGrid free tier limit
-  VERCEL_TIMEOUT_MS: 8000 // 8s timeout buffer for Vercel
+  MAX_EMAILS_PER_RUN: 10,
+  DELAY_BETWEEN_EMAILS: 100,
+  MAX_DAILY_EMAILS: 100,
+  VERCEL_TIMEOUT_MS: 8000
 };
 
-// From email - configure in SendGrid dashboard (Sender Authentication)
-const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'noreply@studykey.com';
-const FROM_NAME = process.env.SENDGRID_FROM_NAME || 'Study Key';
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'noreply@studykey.com';
+const FROM_NAME = process.env.RESEND_FROM_NAME || 'Study Key';
 
 // Helper: Sleep function for rate limiting
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
@@ -133,9 +132,8 @@ async function sendFeedbackEmail(tracker, dayNumber) {
   console.log(`\n📧 Sending Day ${dayNumber} email to ${tracker.orderId} for ${tracker.customerEmail}`);
   
   try {
-    // Check for SendGrid configuration
-    if (!process.env.SENDGRID_API_KEY) {
-      const error = 'SendGrid API key not configured';
+    if (!process.env.RESEND_API_KEY) {
+      const error = 'Resend API key not configured';
       console.error(`❌ ${error}`);
       tracker.emailSchedule[`day${dayNumber}`].error = error;
       await tracker.save();
@@ -159,60 +157,40 @@ async function sendFeedbackEmail(tracker, dayNumber) {
     console.log(`📤 Preparing to send email to: ${tracker.customerEmail}`);
     console.log(`📝 Subject: ${subject.substring(0, 60)}...`);
     
-    // Send email via SendGrid API (much faster than SMTP!)
     const msg = {
       to: tracker.customerEmail,
-      from: {
-        email: FROM_EMAIL,
-        name: FROM_NAME
-      },
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
       subject: subject,
       html: emailHtml,
-      trackingSettings: {
-        clickTracking: { enable: true },
-        openTracking: { enable: true }
-      },
-      customArgs: {
-        orderId: tracker.orderId,
-        emailDay: `day${dayNumber}`
-      }
     };
-    
-    console.log(`🚀 Attempting to send email via SendGrid...`);
-    const response = await sgMail.send(msg);
-    
-    // Check response status (202 = accepted)
-    if (response[0].statusCode === 202) {
+
+    console.log(`🚀 Attempting to send email via Resend...`);
+    const { data, error: sendError } = await resend.emails.send(msg);
+
+    if (!sendError && data?.id) {
       console.log(`✅ Day ${dayNumber} email successfully sent to ${tracker.customerEmail}`);
-      
-      // Mark as sent
+
       tracker.emailSchedule[`day${dayNumber}`].sent = true;
       tracker.emailSchedule[`day${dayNumber}`].sentAt = new Date();
       tracker.emailSchedule[`day${dayNumber}`].error = null;
-      tracker.emailSchedule[`day${dayNumber}`].messageId = response[0].headers['x-message-id'];
+      tracker.emailSchedule[`day${dayNumber}`].messageId = data.id;
       await tracker.save();
-      
-      return { success: true, messageId: response[0].headers['x-message-id'] };
+
+      return { success: true, messageId: data.id };
     } else {
-      const errorMessage = `Unexpected status code: ${response[0].statusCode}`;
+      const errorMessage = sendError?.message || 'Unknown Resend error';
       console.error(`❌ ${errorMessage}`);
-      
+
       tracker.emailSchedule[`day${dayNumber}`].error = errorMessage;
       tracker.emailSchedule[`day${dayNumber}`].sent = false;
       await tracker.save();
-      
+
       return { success: false, error: errorMessage };
     }
-    
+
   } catch (error) {
     console.error(`\n❌ FAILED to send Day ${dayNumber} email to ${tracker.customerEmail}!`);
     console.error(`Error: ${error.message}`);
-    
-    // Handle SendGrid specific errors
-    if (error.response) {
-      console.error(`SendGrid Error Code: ${error.code}`);
-      console.error(`SendGrid Error Body:`, JSON.stringify(error.response.body, null, 2));
-    }
     
     // Mark as failed in database
     tracker.emailSchedule[`day${dayNumber}`].error = error.message || 'Unknown error';
@@ -424,31 +402,24 @@ async function processPendingEmails() {
  */
 async function sendTestEmail(email, name = 'Test User') {
   try {
-    if (!process.env.SENDGRID_API_KEY) {
-      return { success: false, error: 'SendGrid API key not configured' };
+    if (!process.env.RESEND_API_KEY) {
+      return { success: false, error: 'Resend API key not configured' };
     }
-    
+
     const msg = {
       to: email,
-      from: {
-        email: FROM_EMAIL,
-        name: FROM_NAME
-      },
+      from: `${FROM_NAME} <${FROM_EMAIL}>`,
       subject: 'Test Email - Study Key Feedback System',
       html: getDefaultEmailContent(3, name),
-      trackingSettings: {
-        clickTracking: { enable: true },
-        openTracking: { enable: true }
-      }
     };
-    
-    const response = await sgMail.send(msg);
-    
-    return { 
-      success: true, 
-      messageId: response[0].headers['x-message-id'],
-      statusCode: response[0].statusCode
-    };
+
+    const { data, error: sendError } = await resend.emails.send(msg);
+
+    if (sendError) {
+      return { success: false, error: sendError.message };
+    }
+
+    return { success: true, messageId: data.id };
   } catch (error) {
     console.error('Test email error:', error);
     return { success: false, error: error.message };
