@@ -51,25 +51,34 @@
         <div class="reward-email">
           
           <div class="reward-email-texts">
-            <h1>Thank you for your submission!</h1>
-    
+            <h1>Your bonus set is on the way!</h1>
+
             <p>Dear {{firstName}},</p>
-            
-            <p>Thank you for claiming your bonus set. Your submission is currently under review. This process typically takes 2-3 business days.</p>
-            
-            <p>Once your submission is approved, we will send you the following:</p>
-            <ul>
-                <li>A special gift PDF (available for 7 days): <a href="{{pdfUrl}}">Download Gift PDF</a></li>
-            </ul>
-            
+
+            <p>Thank you for claiming your Study Key bonus set. We've received your details and your order is now being processed for shipment.</p>
+
+            <p><strong>Amazon Order ID:</strong> {{orderId}}</p>
+
+            <p><strong>Your eBooks — download anytime:</strong></p>
+            <p style="text-align: center; margin: 16px 0;">
+                <a href="https://go.studykey.ca/english-pdf" style="display: inline-block; background-color: #ff5733; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 999px; margin: 4px;">📘 English PDF</a>
+                <a href="https://go.studykey.ca/spanish-pdf" style="display: inline-block; background-color: #ff5733; color: #ffffff; text-decoration: none; padding: 10px 20px; border-radius: 999px; margin: 4px;">📗 Spanish PDF</a>
+            </p>
+            <p style="font-size: 12px; color: #6c757d; text-align: center;">
+                If the buttons don't work, copy these links into your browser:<br>
+                English: <a href="https://go.studykey.ca/english-pdf">https://go.studykey.ca/english-pdf</a><br>
+                Spanish: <a href="https://go.studykey.ca/spanish-pdf">https://go.studykey.ca/spanish-pdf</a>
+            </p>
+
             <p>Shipping Address:</p>
             <p>
                 {{address.street}}<br>
                 {{address.city}}, {{address.state}} {{address.zipCode}}<br>
                 {{address.country}}
             </p>
-            
-            <p>If you have any questions, please don't hesitate to contact us.</p>
+
+            <p>If anything in the address above looks wrong, please reply to this email as soon as possible so we can update it before shipping.</p>
+
             <p>Best regards,<br>
             The Study Key Team</p>
           </div>
