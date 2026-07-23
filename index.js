@@ -6,14 +6,28 @@ const SellingPartnerAPI = require("amazon-sp-api");
 const path = require("path");
 
 const app = express();
-app.use(express.json());
 require("dotenv").config();
+app.use(express.json({ limit: "10kb" }));
 
 const cors = require("cors");
 const allowedOrigins = [
-  "https://studykey-riddles.vercel.app",
-  "https://studykey-giveaway.vercel.app",
-  "https://studykey-riddles-server.vercel.app",
+  // Allow origins from env only.
+  ...(process.env.RIDDLES_ORIGIN ? [process.env.RIDDLES_ORIGIN] : []),
+  ...(process.env.GIVEAWAY_ORIGIN ? [process.env.GIVEAWAY_ORIGIN] : []),
+  ...(process.env.RIDDLES_SERVER_ORIGIN ? [process.env.RIDDLES_SERVER_ORIGIN] : []),
+  ...(process.env.WORKBOOK_ORIGIN ? [process.env.WORKBOOK_ORIGIN] : []),
+  // Optional extra origins, comma-separated
+  ...(process.env.EXTRA_ALLOWED_ORIGINS
+    ? process.env.EXTRA_ALLOWED_ORIGINS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : []),
+  // Optional single consolidated list, comma-separated
+  ...(process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : []),
   // "http://localhost:5173",
   // // "http://localhost:5000",
 ];
@@ -63,7 +77,61 @@ async function connectToDatabase() {
   }
 })();
 
+// Separate connection for the "newemailonly" database (holds the `workbook` and
+// `ebook` collections). Kept independent from the default connection so the
+// bonus/feedback routes are unaffected.
+let cachedEmailConnection = null;
+
+async function connectToEmailDatabase() {
+  if (cachedEmailConnection && cachedEmailConnection.readyState === 1) {
+    return cachedEmailConnection;
+  }
+
+  if (!process.env.EMAIL_MONGODB_URI) {
+    throw new Error("EMAIL_MONGODB_URI is not configured");
+  }
+
+  const conn = mongoose.createConnection(process.env.EMAIL_MONGODB_URI, {
+    serverSelectionTimeoutMS: 30000,
+    socketTimeoutMS: 45000,
+    connectTimeoutMS: 30000,
+    maxPoolSize: 10,
+    family: 4,
+  });
+
+  conn.on("connected", () => console.log("Email MongoDB connected"));
+  conn.on("error", (err) => console.error("Email MongoDB connection error:", err));
+
+  await conn.asPromise();
+  cachedEmailConnection = conn;
+  return conn;
+}
+
 const Schema = mongoose.Schema;
+
+// --- Email validation / normalization (shared, server-side; clients are untrusted) ---
+const EMAIL_MAX_LENGTH = 254; // RFC 5321 total length cap
+const EMAIL_REGEX = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
+
+function normalizeEmail(raw) {
+  if (typeof raw !== "string") return null; // rejects arrays/objects → blocks NoSQL operator injection
+  const email = raw.trim().toLowerCase();
+  if (email.length === 0 || email.length > EMAIL_MAX_LENGTH) return null;
+  return email;
+}
+
+function isValidEmail(email) {
+  if (typeof email !== "string" || !EMAIL_REGEX.test(email)) return false;
+  const [local, domain] = email.split("@");
+  return local.length <= 64 && domain.length <= 255;
+}
+
+// Turn a Google Drive "view" link into a direct-download link (leaves other URLs untouched).
+function toDriveDownloadUrl(url) {
+  if (typeof url !== "string") return url;
+  const match = /\/file\/d\/([^/]+)/.exec(url) || /[?&]id=([^&]+)/.exec(url);
+  return match ? `https://drive.google.com/uc?export=download&id=${match[1]}` : url;
+}
 
 const handlebars = require("nodemailer-express-handlebars");
 
@@ -88,6 +156,17 @@ transporter.use(
     extName: ".html",
   })
 );
+
+// Promisified mail send so we can `await` delivery (important on serverless:
+// un-awaited sends can be dropped when the function freezes after responding).
+function sendMailPromise(options) {
+  return new Promise((resolve, reject) => {
+    transporter.sendMail(options, (error, info) => {
+      if (error) reject(error);
+      else resolve(info);
+    });
+  });
+}
 
 app.use(
   helmet({
@@ -617,9 +696,262 @@ app.post("/bonus-claim", async (req, res) => {
   }
 });
 
+// ---------------------------------------------------------------------------
+// Workbook — email subscribe + PDF delivery
+// Frontend sends: POST /api/subscribe { email, website(honeypot) }
+// Stored in the `workbook` collection of the newemailonly database.
+// ---------------------------------------------------------------------------
+
+const SubscriberSchema = new Schema(
+  {
+    email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    ipAddress: String,
+    userAgent: String,
+    lastSentAt: Date,
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: "workbook" } // explicit collection name
+);
+
+// Model is bound to the email-database connection (compiled once).
+function getSubscriberModel(conn) {
+  return conn.models.Subscriber || conn.model("Subscriber", SubscriberSchema);
+}
+
+// Stricter limiter for the public subscribe endpoint (on top of the global limiter).
+const subscribeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // 5 attempts per IP per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests. Please try again later." },
+});
+
+async function sendWorkbookEmail(email) {
+  const pdfViewUrl = process.env.WORKBOOK_PDF_URL || "";
+  const pdfDownloadUrl = toDriveDownloadUrl(pdfViewUrl);
+
+  const userMailOptions = {
+    from: process.env.GMAIL_USER,
+    to: email,
+    subject: "Your Study Key Workbook is here 📚",
+    template: "workbook",
+    context: { pdfViewUrl, pdfDownloadUrl },
+  };
+
+  const adminMailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.ADMIN_EMAIL || process.env.GMAIL_USER,
+    subject: "New Workbook Subscriber",
+    html: DOMPurify.sanitize(
+      `<h1>New Workbook Subscriber</h1><p><strong>Email:</strong> ${email}</p>`
+    ),
+  };
+
+  // Send both concurrently and WAIT for both so the admin email actually goes out
+  // before the (serverless) function freezes. Admin failure is logged but non-fatal.
+  const [userResult, adminResult] = await Promise.allSettled([
+    sendMailPromise(userMailOptions),
+    sendMailPromise(adminMailOptions),
+  ]);
+
+  if (adminResult.status === "rejected") {
+    console.error("Admin notification failed (non-fatal):", adminResult.reason);
+  } else {
+    console.log("Admin notification sent:", adminResult.value && adminResult.value.messageId);
+  }
+
+  // The user email is the deliverable — fail the request only if it didn't send.
+  if (userResult.status === "rejected") throw userResult.reason;
+  console.log("Workbook email sent to user:", userResult.value && userResult.value.messageId);
+}
+
+app.post("/api/subscribe", subscribeLimiter, async (req, res) => {
+  try {
+    const body = req.body || {};
+
+    // Honeypot: real users never fill the hidden "website" field. Silently accept + drop.
+    if (body.website !== undefined && String(body.website).trim() !== "") {
+      return res.status(200).json({
+        success: true,
+        message: "Thanks! Check your inbox for your workbook.",
+      });
+    }
+
+    const email = normalizeEmail(body.email);
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Please enter a valid email address.",
+      });
+    }
+
+    const conn = await connectToEmailDatabase();
+    const Subscriber = getSubscriberModel(conn);
+
+    // Atomic upsert — records new subscribers, refreshes lastSentAt on repeats,
+    // and avoids duplicate-key races. Every valid request still gets the PDF.
+    try {
+      await Subscriber.updateOne(
+        { email },
+        {
+          $setOnInsert: { email, createdAt: new Date() },
+          $set: {
+            lastSentAt: new Date(),
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent") || "",
+          },
+        },
+        { upsert: true }
+      );
+    } catch (dbErr) {
+      // 11000 = duplicate key from a concurrent insert; treat as an existing subscriber.
+      if (dbErr && dbErr.code !== 11000) throw dbErr;
+    }
+
+    await sendWorkbookEmail(email);
+
+    return res.status(200).json({
+      success: true,
+      message: "Success! Your workbook download link is on its way to your inbox.",
+    });
+  } catch (err) {
+    console.error("Error in /api/subscribe:", err);
+    // Generic message — never leak internals to the client.
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong. Please try again in a moment.",
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// eBook — request a PDF by language (called from the giveaway frontend)
+// Frontend sends: POST /request-pdf { email, pdf: "English" | "Spanish", website(honeypot) }
+// Saved to the `ebook` collection — a DIFFERENT collection in the SAME newemailonly database.
+// ---------------------------------------------------------------------------
+
+// Language -> server-owned PDF. The client NEVER supplies a URL, only the key.
+const PDF_BY_LANGUAGE = Object.freeze({
+  English: { subject: "Your Study Key English eBook 📚", url: process.env.ENGLISH_PDF_URL },
+  Spanish: { subject: "Your Study Key Spanish eBook 📚", url: process.env.SPANISH_PDF_URL },
+});
+
+const PdfRequestSchema = new Schema(
+  {
+    email: { type: String, required: true, lowercase: true, trim: true },
+    pdf: { type: String, enum: ["English", "Spanish"], required: true },
+    ipAddress: String,
+    userAgent: String,
+    lastSentAt: Date,
+    createdAt: { type: Date, default: Date.now },
+  },
+  { collection: "ebook" } // explicit collection name
+);
+// One row per (email, language).
+PdfRequestSchema.index({ email: 1, pdf: 1 }, { unique: true });
+
+function getPdfRequestModel(conn) {
+  return conn.models.PdfRequest || conn.model("PdfRequest", PdfRequestSchema);
+}
+
+async function sendPdfEmail(email, language, chosen) {
+  const pdfViewUrl = chosen.url || "";
+  const pdfDownloadUrl = toDriveDownloadUrl(pdfViewUrl);
+
+  const userMailOptions = {
+    from: process.env.GMAIL_USER,
+    to: email, // structured field only — no raw headers, so header injection is impossible
+    subject: chosen.subject,
+    template: "workbook", // reuse the workbook template
+    context: { pdfViewUrl, pdfDownloadUrl },
+  };
+
+  const adminMailOptions = {
+    from: process.env.GMAIL_USER,
+    to: process.env.ADMIN_EMAIL || process.env.GMAIL_USER,
+    subject: `New ${language} eBook request`,
+    html: DOMPurify.sanitize(
+      `<h1>New eBook request</h1><p><strong>Email:</strong> ${email}</p><p><strong>Language:</strong> ${language}</p>`
+    ),
+  };
+
+  // Send both concurrently and WAIT for both so the admin email actually goes out
+  // before the (serverless) function freezes. Admin failure is logged but non-fatal.
+  const [userResult, adminResult] = await Promise.allSettled([
+    sendMailPromise(userMailOptions),
+    sendMailPromise(adminMailOptions),
+  ]);
+
+  if (adminResult.status === "rejected") {
+    console.error("Admin notification failed (non-fatal):", adminResult.reason);
+  } else {
+    console.log("Admin notification sent:", adminResult.value && adminResult.value.messageId);
+  }
+
+  if (userResult.status === "rejected") throw userResult.reason;
+  console.log("eBook email sent to user:", userResult.value && userResult.value.messageId);
+}
+
+app.post("/request-pdf", subscribeLimiter, async (req, res) => {
+  try {
+    // Only accept JSON (the UI has dedicated copy for a 415).
+    if (!req.is("application/json")) {
+      return res.status(415).json({ message: "Unsupported content type." });
+    }
+
+    const body = req.body || {};
+
+    // Honeypot: real users leave the hidden "website" field empty.
+    if (body.website !== undefined && String(body.website).trim() !== "") {
+      return res.status(200).json({ ok: true });
+    }
+
+    const email = normalizeEmail(body.email);
+    if (!email || !isValidEmail(email)) {
+      return res.status(400).json({ message: "Please enter a valid email address." });
+    }
+
+    // Strict allow-list: pdf must be exactly "English" or "Spanish". Used only as a
+    // lookup key, never interpolated into a query/path/filename.
+    const chosen = typeof body.pdf === "string" ? PDF_BY_LANGUAGE[body.pdf] : null;
+    if (!chosen) {
+      return res.status(400).json({ message: "Please choose English or Spanish." });
+    }
+
+    const conn = await connectToEmailDatabase();
+    const PdfRequest = getPdfRequestModel(conn);
+
+    try {
+      await PdfRequest.updateOne(
+        { email, pdf: body.pdf },
+        {
+          $setOnInsert: { email, pdf: body.pdf, createdAt: new Date() },
+          $set: {
+            lastSentAt: new Date(),
+            ipAddress: req.ip,
+            userAgent: req.get("user-agent") || "",
+          },
+        },
+        { upsert: true }
+      );
+    } catch (dbErr) {
+      if (dbErr && dbErr.code !== 11000) throw dbErr;
+    }
+
+    await sendPdfEmail(email, body.pdf, chosen);
+
+    return res.status(200).json({ ok: true });
+  } catch (err) {
+    console.error("Error in /request-pdf:", err);
+    return res.status(500).json({ message: "Something went wrong. Please try again." });
+  }
+});
+
 // app.listen(process.env.PORT || 5000, () => {
 //   console.log(`Server is running on port ${process.env.PORT || 3000}`);
 // });
 
 module.exports = app;
 module.exports.connectToDatabase = connectToDatabase;
+module.exports.connectToEmailDatabase = connectToEmailDatabase;

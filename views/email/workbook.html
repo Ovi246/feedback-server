@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f4f5f7;
+    }
+    .container {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 24px 16px;
+    }
+    .card {
+      background-color: #ffffff;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+    }
+    .logo {
+      display: block;
+      width: 180px;
+      margin: 24px auto 8px;
+    }
+    .body-text {
+      padding: 8px 32px 24px;
+      color: #495057;
+      line-height: 1.6;
+    }
+    .body-text h1 {
+      color: #343a40;
+      font-size: 22px;
+      margin-bottom: 8px;
+    }
+    .button-wrap {
+      text-align: center;
+      margin: 28px 0 8px;
+    }
+    .button {
+      display: inline-block;
+      background-color: #2f6fed;
+      color: #ffffff !important;
+      text-decoration: none;
+      font-weight: 700;
+      padding: 14px 32px;
+      border-radius: 8px;
+      font-size: 16px;
+    }
+    .fallback {
+      font-size: 13px;
+      color: #868e96;
+      text-align: center;
+      margin-top: 12px;
+    }
+    .footer {
+      text-align: center;
+      color: #adb5bd;
+      font-size: 12px;
+      padding: 16px;
+    }
+    .signature {
+      margin-top: 24px;
+    }
+    .signature .name {
+      font-weight: 800;
+      color: #343a40;
+      margin-bottom: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <img
+        class="logo"
+        src="https://drive.usercontent.google.com/download?id=1xgMxGcHcCtDyjO_m6QqGZFTQVVDVC3vi"
+        alt="Study Key"
+      />
+      <div class="body-text">
+        <h1>Your workbook is ready! 🎉</h1>
+        <p>
+          Thank you for subscribing. We're excited to be part of your learning
+          journey. Your free Study Key workbook is ready to download using the
+          button below.
+        </p>
+
+        <div class="button-wrap">
+          <a class="button" href="{{{pdfDownloadUrl}}}" target="_blank" rel="noopener">
+            📖 Download Your Workbook
+          </a>
+        </div>
+
+        <p class="fallback">
+          Button not working? Open it here:<br />
+          <a href="{{{pdfViewUrl}}}" target="_blank" rel="noopener">{{pdfViewUrl}}</a>
+        </p>
+
+        <p>
+          We hope you find this workbook a great addition to your studies. If you
+          have any questions, just reply to this email.
+        </p>
+
+        <div class="signature">
+          <p>Kind regards from your Study Key family,</p>
+          <p class="name">Nafiseh Razavi</p>
+          <p>Studykeyteam@gmail.com</p>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      You are receiving this email because you requested the Study Key workbook.
+    </div>
+  </div>
+</body>
+</html>
