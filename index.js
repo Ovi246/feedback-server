@@ -10,27 +10,20 @@ require("dotenv").config();
 app.use(express.json({ limit: "10kb" }));
 
 const cors = require("cors");
+// CORS allow-list — driven entirely from env. Add named origins and/or a
+// comma-separated ALLOWED_ORIGINS / EXTRA_ALLOWED_ORIGINS list.
 const allowedOrigins = [
-  // Allow origins from env only.
-  ...(process.env.RIDDLES_ORIGIN ? [process.env.RIDDLES_ORIGIN] : []),
-  ...(process.env.GIVEAWAY_ORIGIN ? [process.env.GIVEAWAY_ORIGIN] : []),
-  ...(process.env.RIDDLES_SERVER_ORIGIN ? [process.env.RIDDLES_SERVER_ORIGIN] : []),
-  ...(process.env.WORKBOOK_ORIGIN ? [process.env.WORKBOOK_ORIGIN] : []),
-  // Optional extra origins, comma-separated
-  ...(process.env.EXTRA_ALLOWED_ORIGINS
-    ? process.env.EXTRA_ALLOWED_ORIGINS.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []),
-  // Optional single consolidated list, comma-separated
-  ...(process.env.ALLOWED_ORIGINS
-    ? process.env.ALLOWED_ORIGINS.split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)
-    : []),
-  // "http://localhost:5173",
-  // // "http://localhost:5000",
-];
+  process.env.RIDDLES_ORIGIN,
+  process.env.GIVEAWAY_ORIGIN,
+  process.env.RIDDLES_SERVER_ORIGIN,
+  process.env.WORKBOOK_ORIGIN,
+  ...(process.env.EXTRA_ALLOWED_ORIGINS ? process.env.EXTRA_ALLOWED_ORIGINS.split(",") : []),
+  ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(",") : []),
+]
+  // Normalize: trim, drop empties, strip trailing slash — a browser's Origin
+  // header never carries one, so an env value with "/" would never match.
+  .map((o) => (o || "").trim().replace(/\/+$/, ""))
+  .filter(Boolean);
 
 const nodemailer = require("nodemailer");
 const createDOMPurify = require("dompurify");
@@ -186,14 +179,17 @@ app.use(limiter);
 app.use(
   cors({
     origin: function (origin, callback) {
+      // No Origin header = non-browser client (curl, server-to-server, health check).
       if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        var msg =
-          "The CORS policy for this site does not allow access from the specified Origin.";
-        return callback(new Error(msg), false);
-      }
-      return callback(null, true);
+      const normalized = origin.replace(/\/+$/, "");
+      // Allowed → cors echoes this exact origin back. Not allowed → no CORS
+      // headers set, so the browser blocks it (no noisy 500).
+      return callback(null, allowedOrigins.includes(normalized));
     },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Accept", "X-Requested-With", "x-admin-token"],
+    maxAge: 86400,
   })
 );
 
